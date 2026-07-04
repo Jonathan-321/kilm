@@ -1,0 +1,23 @@
+.DS_Store
+
+# Local experiment outputs
+experiments/logs/
+experiments/results/
+experiments/runs/
+wandb/
+
+# Python/editor noise
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+.env
+
+# Model artifacts and large generated files
+checkpoints/
+artifacts/
+*.pt
+*.pth
+*.safetensors
+*.ckpt

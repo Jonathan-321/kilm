@@ -1,0 +1,27 @@
+This file is a toy sandbox corpus.
+It is not an approved training dataset.
+It is only for checking that the Track A pipeline runs end to end.
+
+Muraho.
+Amakuru?
+Ni meza.
+Murakoze.
+Mwaramutse.
+Nitwa Jonathan.
+Ndi umunyeshuri.
+Ndiga Ikinyarwanda.
+Subiramo buhoro.
+Mfasha gusobanukirwa iri jambo.
+Ishuri ni ahantu twigira.
+Umwarimu afasha abanyeshuri.
+Ikinyarwanda ni ururimi rukoreshwa mu Rwanda.
+Twiga amagambo, interuro, n'imyandikire.
+
+Muraho.
+Amakuru?
+Ni meza.
+Murakoze.
+Ndi umunyeshuri.
+Ndiga Ikinyarwanda.
+Subiramo buhoro.
+Mfasha gusobanukirwa iri jambo.
