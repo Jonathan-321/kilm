@@ -12,6 +12,7 @@ from kilm.reporting import render_comparison_report, render_run_report
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 from kilm.tokenizers import tokenizer_from_dict
 from kilm.training import learning_rate_for_step, select_device
+from scripts.fetch_approved_corpus import decode_source_text
 
 
 def test_char_tokenizer_round_trips_text():
@@ -148,6 +149,13 @@ def test_prepare_lines_normalizes_filters_and_dedupes():
     assert prepared.stats["removed_blank_lines"] == 1
     assert prepared.stats["removed_short_lines"] == 1
     assert prepared.stats["removed_duplicate_lines"] == 1
+
+
+def test_fetcher_decodes_cp1252_source_text(tmp_path):
+    path = tmp_path / "source.tsv"
+    path.write_bytes(b"Uruvunge rw\x92abatuye\n")
+
+    assert decode_source_text(path) == "Uruvunge rw’abatuye\n"
 
 
 def test_split_lines_is_reproducible():

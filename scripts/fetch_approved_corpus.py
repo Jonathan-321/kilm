@@ -133,7 +133,7 @@ def fetch(url: str, path: Path) -> None:
 
 
 def extract_text(path: Path, spec: SourceSpec) -> list[str]:
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = decode_source_text(path)
     reader = csv.reader(text.splitlines(), delimiter=spec.delimiter)
     lines: list[str] = []
     for row_idx, row in enumerate(reader):
@@ -145,6 +145,14 @@ def extract_text(path: Path, spec: SourceSpec) -> list[str]:
         if value:
             lines.append(value)
     return lines
+
+
+def decode_source_text(path: Path) -> str:
+    payload = path.read_bytes()
+    try:
+        return payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return payload.decode("cp1252")
 
 
 def render_source_card(
