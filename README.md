@@ -122,8 +122,38 @@ python3 scripts/run_track_a_sandbox.py \
   --warmup-steps 2 \
   --grad-clip 1.0 \
   --checkpoint-interval 10 \
+  --device auto \
   --out-dir experiments/runs/du_tts_1k_tiny_baseline
 ```
+
+For a stronger local Apple GPU baseline, fetch the full TTS source without
+`--limit`, prepare it under `data/processed/digital_umuganda_tts_full`, then
+run:
+
+```bash
+python3 scripts/run_track_a_sandbox.py \
+  --manifest data/processed/digital_umuganda_tts_full/corpora.json \
+  --corpus-id digital-umuganda-tts-rw-train \
+  --val-corpus-id digital-umuganda-tts-rw-val \
+  --tokenizer bpe \
+  --tokenizer-fit-scope train-val \
+  --bpe-vocab-size 512 \
+  --model-config small \
+  --max-steps 200 \
+  --eval-interval 25 \
+  --eval-iters 5 \
+  --batch-size 32 \
+  --learning-rate 0.0008 \
+  --min-learning-rate 0.00008 \
+  --lr-schedule cosine \
+  --warmup-steps 10 \
+  --grad-clip 1.0 \
+  --checkpoint-interval 50 \
+  --device mps \
+  --out-dir experiments/runs/du_tts_full_small_mps_baseline
+```
+
+Use `--device auto` by default. It prefers CUDA, then Apple MPS, then CPU.
 
 Run morphology-focused tokenizer evaluation:
 

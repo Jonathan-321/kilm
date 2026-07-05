@@ -28,6 +28,7 @@ from kilm.training import (
     learning_rate_for_step,
     maybe_clip_gradients,
     save_training_checkpoint,
+    select_device,
     set_optimizer_lr,
 )
 
@@ -75,6 +76,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--warmup-steps", type=int, default=0)
     parser.add_argument("--grad-clip", type=float, default=1.0)
+    parser.add_argument(
+        "--device",
+        choices=("auto", "cpu", "cuda", "mps"),
+        default="auto",
+    )
     parser.add_argument("--sample-tokens", type=int, default=160)
     parser.add_argument("--prompt", default="Muraho")
     parser.add_argument(
@@ -236,7 +242,7 @@ def main() -> int:
     set_seed(args.seed)
 
     corpus, text, val_corpus, val_text = load_train_val_texts(args)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = select_device(args.device)
     checkpoint = (
         load_checkpoint(args.resume_checkpoint, device)
         if args.resume_checkpoint

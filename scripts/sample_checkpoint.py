@@ -16,6 +16,7 @@ import torch
 from kilm.checkpointing import load_checkpoint
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 from kilm.tokenizers import tokenizer_from_dict
+from kilm.training import select_device
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,6 +25,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prompt", default="Muraho")
     parser.add_argument("--sample-tokens", type=int, default=160)
     parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument(
+        "--device",
+        choices=("auto", "cpu", "cuda", "mps"),
+        default="auto",
+    )
     parser.add_argument("--seed", type=int, default=1337)
     return parser.parse_args()
 
@@ -32,7 +38,7 @@ def main() -> int:
     args = parse_args()
     torch.manual_seed(args.seed)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = select_device(args.device)
     checkpoint = load_checkpoint(args.checkpoint, device)
     tokenizer = tokenizer_from_dict(checkpoint["tokenizer"])
     config = TinyTransformerConfig(**checkpoint["config"])

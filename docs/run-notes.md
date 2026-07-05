@@ -1,5 +1,79 @@
 # Track A Sandbox Run Notes
 
+## 2026-07-05 Approved TTS Full Small MPS Baseline
+
+Commands:
+
+```bash
+python3 scripts/fetch_approved_corpus.py \
+  --source digital-umuganda-tts-rw
+
+python3 scripts/prepare_corpus.py \
+  --corpus-id digital-umuganda-tts-rw \
+  --out-dir data/processed/digital_umuganda_tts_full \
+  --val-fraction 0.1 \
+  --min-line-chars 5
+
+python3 scripts/analyze_tokenizers.py \
+  --manifest data/processed/digital_umuganda_tts_full/corpora.json \
+  --corpus-id digital-umuganda-tts-rw-full \
+  --bpe-vocab-size 512 \
+  --out-dir experiments/analysis/du_tts_full_tokenizers
+
+python3 scripts/run_track_a_sandbox.py \
+  --manifest data/processed/digital_umuganda_tts_full/corpora.json \
+  --corpus-id digital-umuganda-tts-rw-train \
+  --val-corpus-id digital-umuganda-tts-rw-val \
+  --tokenizer bpe \
+  --tokenizer-fit-scope train-val \
+  --bpe-vocab-size 512 \
+  --model-config small \
+  --max-steps 200 \
+  --eval-interval 25 \
+  --eval-iters 5 \
+  --batch-size 32 \
+  --learning-rate 0.0008 \
+  --min-learning-rate 0.00008 \
+  --lr-schedule cosine \
+  --warmup-steps 10 \
+  --grad-clip 1.0 \
+  --checkpoint-interval 50 \
+  --device mps \
+  --out-dir experiments/runs/du_tts_full_small_mps_baseline
+
+python3 scripts/create_review_packet.py \
+  experiments/runs/du_tts_full_small_mps_baseline
+```
+
+Result:
+
+```text
+prepared_lines=3922
+train_lines=3530
+val_lines=392
+char tokens=340384
+BPE tokens=134090
+BPE tokens/word=2.8540
+train_tokens=120605
+val_tokens=13481
+initial_val_loss=6.4065
+final_val_loss=4.9201
+initial_val_perplexity=605.7486
+final_val_perplexity=137.0228
+device=mps
+interval checkpoints written at steps 50, 100, 150, and 200
+```
+
+Interpretation:
+
+This is the first larger approved-data baseline. It uses the full local
+Digital Umuganda TTS sentence text, the `small` config, Apple MPS, cosine LR
+decay, gradient clipping, real held-out validation, and review-card outputs.
+
+The sample is still not ready for learner use, but it is much less toy-like
+than the 20-step sanity run. The next useful scale step is longer training and
+speaker review, not another rewrite of the loop.
+
 ## 2026-07-05 Approved TTS 1k Baseline
 
 Commands:

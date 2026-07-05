@@ -12,6 +12,35 @@ from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 from kilm.tokenizers import AnyTokenizer
 
 
+def select_device(requested: str = "auto") -> torch.device:
+    if requested == "cpu":
+        return torch.device("cpu")
+    if requested == "cuda":
+        if not torch.cuda.is_available():
+            raise ValueError("CUDA was requested but is not available")
+        return torch.device("cuda")
+    if requested == "mps":
+        if not _mps_available():
+            raise ValueError("MPS was requested but is not available")
+        return torch.device("mps")
+    if requested != "auto":
+        raise ValueError(f"unknown device: {requested}")
+
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if _mps_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
+def _mps_available() -> bool:
+    return (
+        hasattr(torch.backends, "mps")
+        and torch.backends.mps.is_available()
+        and torch.backends.mps.is_built()
+    )
+
+
 def learning_rate_for_step(
     *,
     step: int,

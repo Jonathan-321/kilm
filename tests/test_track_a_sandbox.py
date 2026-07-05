@@ -11,7 +11,7 @@ from kilm.preprocessing import prepare_lines, split_lines
 from kilm.reporting import render_comparison_report, render_run_report
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 from kilm.tokenizers import tokenizer_from_dict
-from kilm.training import learning_rate_for_step
+from kilm.training import learning_rate_for_step, select_device
 
 
 def test_char_tokenizer_round_trips_text():
@@ -211,6 +211,10 @@ def test_cosine_learning_rate_decays_after_warmup():
 
     assert warmup_lr == 0.5
     assert round(final_lr, 4) == 0.1
+
+
+def test_select_device_accepts_cpu():
+    assert select_device("cpu").type == "cpu"
 
 
 def test_run_report_renders_key_fields():
