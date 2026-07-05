@@ -35,7 +35,8 @@ Interpretation:
 
 KILM now produces reusable pipeline artifacts, not just console output. Each run
 is attached to a corpus manifest record, writes tokenizer metadata, can save a
-checkpoint, and can generate again from that checkpoint later.
+checkpoint, writes a `run_report.md`, and can generate again from that
+checkpoint later.
 
 The result is still toy-only. The next serious step is to put a small approved
 Kinyarwanda corpus into the manifest and rerun the same analysis/training flow.

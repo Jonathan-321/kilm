@@ -6,6 +6,7 @@ from kilm.analysis import summarize_tokenizer
 from kilm.bpe_tokenizer import BpeTokenizer
 from kilm.char_tokenizer import CharTokenizer
 from kilm.corpus import load_corpus_text, load_manifest
+from kilm.reporting import render_comparison_report, render_run_report
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 from kilm.tokenizers import tokenizer_from_dict
 
@@ -132,6 +133,54 @@ def test_tokenizer_summary_reports_compression():
 
     assert bpe_summary["num_tokens"] < char_summary["num_tokens"]
     assert bpe_summary["tokens_per_word"] < char_summary["tokens_per_word"]
+
+
+def test_run_report_renders_key_fields():
+    summary = {
+        "corpus": {
+            "id": "toy",
+            "status": "toy",
+            "path": "data/toy_corpus.txt",
+            "description": "Toy corpus",
+        },
+        "tokenizer": {"type": "bpe", "vocab_size": 64, "num_merges": 24},
+        "config": {"n_layer": 1, "n_head": 1, "n_embd": 16, "block_size": 8},
+        "num_tokens": 20,
+        "tokens_per_character": 0.75,
+        "train_tokens": 16,
+        "val_tokens": 8,
+        "final_val_loss": 1.2,
+        "final_val_perplexity": 3.32,
+        "initial_val_loss": 4.2,
+        "initial_val_perplexity": 66.0,
+        "elapsed_seconds": 0.5,
+        "prompt": "Muraho",
+        "sample": "Muraho neza",
+        "interpretation": "Toy only.",
+        "checkpoint": "checkpoint.pt",
+    }
+
+    report = render_run_report(summary)
+
+    assert "Final validation loss" in report
+    assert "Muraho neza" in report
+    assert "checkpoint.pt" in report
+
+
+def test_comparison_report_renders_rows():
+    summary = {
+        "corpus": {"id": "toy", "status": "toy"},
+        "tokenizer": {"type": "char", "vocab_size": 40},
+        "num_tokens": 558,
+        "final_val_loss": 1.7,
+        "final_val_perplexity": 5.5,
+        "checkpoint": None,
+    }
+
+    report = render_comparison_report([("char_smoke", summary)])
+
+    assert "char_smoke" in report
+    assert "| char |" in report
 
 
 def test_tiny_transformer_forward_shapes():

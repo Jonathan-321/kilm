@@ -79,6 +79,15 @@ python3 scripts/sample_checkpoint.py \
   --sample-tokens 80
 ```
 
+Compare completed runs:
+
+```bash
+python3 scripts/compare_runs.py \
+  experiments/runs/char_smoke \
+  experiments/runs/bpe_smoke \
+  --out experiments/analysis/run_comparison.md
+```
+
 Outputs are written to:
 
 ```text
@@ -88,6 +97,7 @@ experiments/runs/track_a_sandbox/
 Each run writes:
 
 - `summary.json`,
+- `run_report.md`,
 - `sample.txt`,
 - `vocab.json`,
 - `tokenizer.json`.

@@ -19,6 +19,7 @@ if str(SRC) not in sys.path:
 import torch
 
 from kilm.corpus import load_corpus_text
+from kilm.reporting import render_run_report
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 from kilm.tokenizers import AnyTokenizer, train_tokenizer
 
@@ -264,6 +265,10 @@ def main() -> int:
     }
     (args.out_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    (args.out_dir / "run_report.md").write_text(
+        render_run_report(summary),
         encoding="utf-8",
     )
     (args.out_dir / "sample.txt").write_text(sample + "\n", encoding="utf-8")
