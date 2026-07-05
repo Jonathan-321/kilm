@@ -23,6 +23,12 @@ class CharTokenizer:
             raise ValueError("cannot train tokenizer on empty text")
         return cls(tuple(sorted(set(text))))
 
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> "CharTokenizer":
+        if payload.get("type") != "char":
+            raise ValueError("expected char tokenizer payload")
+        return cls(tuple(str(char) for char in payload["chars"]))
+
     @property
     def vocab_size(self) -> int:
         return len(self.chars)

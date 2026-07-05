@@ -1,5 +1,45 @@
 # Track A Sandbox Run Notes
 
+## 2026-07-05 Pipeline Artifact Run
+
+Commands:
+
+```bash
+python3 scripts/analyze_tokenizers.py \
+  --bpe-vocab-size 64 \
+  --out-dir experiments/analysis/tokenizers_smoke
+
+python3 scripts/run_track_a_sandbox.py \
+  --tokenizer bpe \
+  --bpe-vocab-size 64 \
+  --max-steps 40 \
+  --out-dir experiments/runs/bpe_checkpoint_smoke
+
+python3 scripts/sample_checkpoint.py \
+  experiments/runs/bpe_checkpoint_smoke/checkpoint.pt \
+  --prompt Muraho \
+  --sample-tokens 80
+```
+
+Result:
+
+```text
+tests: 11 passed
+tokenizer analysis: char 558 tokens, BPE 386 tokens
+BPE final_val_loss=1.8230
+BPE final_val_perplexity=6.1904
+checkpoint saved and loadable
+```
+
+Interpretation:
+
+KILM now produces reusable pipeline artifacts, not just console output. Each run
+is attached to a corpus manifest record, writes tokenizer metadata, can save a
+checkpoint, and can generate again from that checkpoint later.
+
+The result is still toy-only. The next serious step is to put a small approved
+Kinyarwanda corpus into the manifest and rerun the same analysis/training flow.
+
 ## 2026-07-05 Tiny BPE LM Run
 
 Command:
@@ -87,5 +127,4 @@ What this does not prove:
 
 Next gate:
 
-Replace the character tokenizer with the team BPE tokenizer and rerun this same
-kind of sandbox on a small approved corpus.
+Rerun the char-vs-BPE comparison and tiny LM loop on a small approved corpus.

@@ -4,6 +4,7 @@
 experiments/logs/
 experiments/results/
 experiments/runs/
+experiments/analysis/
 wandb/
 
 # Python/editor noise

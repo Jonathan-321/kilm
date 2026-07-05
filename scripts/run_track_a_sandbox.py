@@ -18,18 +18,21 @@ if str(SRC) not in sys.path:
 
 import torch
 
-from kilm.bpe_tokenizer import BpeTokenizer
-from kilm.char_tokenizer import CharTokenizer
+from kilm.corpus import load_corpus_text
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
+from kilm.tokenizers import AnyTokenizer, train_tokenizer
 
 
-DEFAULT_CORPUS = ROOT / "data" / "toy_corpus.txt"
+DEFAULT_MANIFEST = ROOT / "data" / "corpora.json"
 DEFAULT_OUT_DIR = ROOT / "experiments" / "runs" / "track_a_sandbox"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
+    parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--corpus-id", default="toy")
+    parser.add_argument("--corpus", type=Path, default=None)
+    parser.add_argument("--allow-unapproved-corpus", action="store_true")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--tokenizer", choices=("char", "bpe"), default="char")
     parser.add_argument("--bpe-vocab-size", type=int, default=80)
@@ -44,6 +47,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=3e-3)
     parser.add_argument("--sample-tokens", type=int, default=160)
     parser.add_argument("--prompt", default="Muraho")
+    parser.add_argument(
+        "--save-checkpoint",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     parser.add_argument("--seed", type=int, default=1337)
     return parser.parse_args()
 
@@ -68,16 +76,6 @@ def get_batch(
     return x.to(device), y.to(device)
 
 
-def build_tokenizer(args: argparse.Namespace, text: str) -> CharTokenizer | BpeTokenizer:
-    if args.tokenizer == "char":
-        return CharTokenizer.train(text)
-    return BpeTokenizer.train(
-        text,
-        vocab_size=args.bpe_vocab_size,
-        min_frequency=args.bpe_min_frequency,
-    )
-
-
 def safe_perplexity(loss: float) -> float:
     if loss > 50:
         return float("inf")
@@ -85,7 +83,7 @@ def safe_perplexity(loss: float) -> float:
 
 
 def encode_prompt(
-    tokenizer: CharTokenizer | BpeTokenizer,
+    tokenizer: AnyTokenizer,
     *,
     prompt: str,
     fallback_text: str,
@@ -95,6 +93,14 @@ def encode_prompt(
     except ValueError:
         fallback = fallback_text[: max(1, min(16, len(fallback_text)))]
         return fallback, tokenizer.encode(fallback)
+
+
+def serializable_args(args: argparse.Namespace) -> dict[str, object]:
+    payload = vars(args).copy()
+    for key, value in payload.items():
+        if isinstance(value, Path):
+            payload[key] = str(value)
+    return payload
 
 
 @torch.no_grad()
@@ -110,7 +116,12 @@ def estimate_loss(
     model.eval()
     losses = []
     for _ in range(eval_iters):
-        x, y = get_batch(data, batch_size=batch_size, block_size=block_size, device=device)
+        x, y = get_batch(
+            data,
+            batch_size=batch_size,
+            block_size=block_size,
+            device=device,
+        )
         _, loss = model(x, y)
         assert loss is not None
         losses.append(loss.item())
@@ -122,8 +133,18 @@ def main() -> int:
     args = parse_args()
     set_seed(args.seed)
 
-    text = args.corpus.read_text(encoding="utf-8")
-    tokenizer = build_tokenizer(args, text)
+    corpus, text = load_corpus_text(
+        manifest_path=args.manifest,
+        corpus_id=args.corpus_id,
+        corpus_path=args.corpus,
+        allow_unapproved=args.allow_unapproved_corpus,
+    )
+    tokenizer = train_tokenizer(
+        args.tokenizer,
+        text,
+        bpe_vocab_size=args.bpe_vocab_size,
+        bpe_min_frequency=args.bpe_min_frequency,
+    )
     token_ids = torch.tensor(tokenizer.encode(text), dtype=torch.long)
     if len(token_ids) <= args.block_size + 1:
         raise ValueError(
@@ -187,7 +208,10 @@ def main() -> int:
                     "val_loss": float(val_loss),
                 }
             )
-            print(f"step {step:04d} train_loss={loss.item():.4f} val_loss={val_loss:.4f}")
+            print(
+                f"step {step:04d} train_loss={loss.item():.4f} "
+                f"val_loss={val_loss:.4f}"
+            )
 
     prompt, prompt_token_ids = encode_prompt(
         tokenizer,
@@ -201,8 +225,11 @@ def main() -> int:
     final_perplexity = safe_perplexity(final_loss)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = args.out_dir / "checkpoint.pt" if args.save_checkpoint else None
     summary = {
-        "corpus": str(args.corpus),
+        "args": serializable_args(args),
+        "corpus": corpus.to_dict(),
+        "corpus_path": str(corpus.path),
         "device": str(device),
         "seed": args.seed,
         "tokenizer": {
@@ -228,6 +255,7 @@ def main() -> int:
         "losses": losses,
         "prompt": prompt,
         "sample": sample,
+        "checkpoint": str(checkpoint_path) if checkpoint_path else None,
         "elapsed_seconds": round(time.time() - start_time, 3),
         "interpretation": (
             "Toy sandbox only. A lower loss here proves the loop can learn from "
@@ -248,11 +276,24 @@ def main() -> int:
         json.dumps(tokenizer.to_dict(), indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    if checkpoint_path:
+        torch.save(
+            {
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "config": asdict(config),
+                "tokenizer": tokenizer.to_dict(),
+                "summary": summary,
+            },
+            checkpoint_path,
+        )
 
     print(f"initial_val_loss={initial_loss:.4f}")
     print(f"final_val_loss={final_loss:.4f}")
     print(f"initial_val_perplexity={initial_perplexity:.4f}")
     print(f"final_val_perplexity={final_perplexity:.4f}")
+    if checkpoint_path:
+        print(f"checkpoint={checkpoint_path}")
     print(f"wrote {args.out_dir}")
     return 0
 

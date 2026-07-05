@@ -1,0 +1,13 @@
+{
+  "corpora": [
+    {
+      "id": "toy",
+      "path": "toy_corpus.txt",
+      "status": "toy",
+      "description": "Review-only toy text for wiring the KILM pipeline end to end.",
+      "source": "Hand-written local sandbox text",
+      "license": "not a training dataset",
+      "notes": "Use only for smoke tests and debugging. Do not treat as approved Kinyarwanda training data."
+    }
+  ]
+}

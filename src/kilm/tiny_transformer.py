@@ -31,7 +31,10 @@ class CausalSelfAttention(nn.Module):
         self.proj = nn.Linear(config.n_embd, config.n_embd)
         self.dropout = nn.Dropout(config.dropout)
         mask = torch.tril(torch.ones(config.block_size, config.block_size))
-        self.register_buffer("mask", mask.view(1, 1, config.block_size, config.block_size))
+        self.register_buffer(
+            "mask",
+            mask.view(1, 1, config.block_size, config.block_size),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         batch, seq_len, embd = x.shape
@@ -42,7 +45,10 @@ class CausalSelfAttention(nn.Module):
         v = v.view(batch, seq_len, self.n_head, self.head_dim).transpose(1, 2)
 
         scores = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        scores = scores.masked_fill(self.mask[:, :, :seq_len, :seq_len] == 0, float("-inf"))
+        scores = scores.masked_fill(
+            self.mask[:, :, :seq_len, :seq_len] == 0,
+            float("-inf"),
+        )
         weights = F.softmax(scores, dim=-1)
         weights = self.dropout(weights)
         out = weights @ v

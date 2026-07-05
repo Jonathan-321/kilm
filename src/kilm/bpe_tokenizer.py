@@ -73,6 +73,19 @@ class BpeTokenizer:
 
         return cls(vocab=tuple(vocab), merges=tuple(merges), chars=chars)
 
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> "BpeTokenizer":
+        if payload.get("type") != "bpe":
+            raise ValueError("expected bpe tokenizer payload")
+        merges = tuple(tuple(str(part) for part in pair) for pair in payload["merges"])
+        if any(len(pair) != 2 for pair in merges):
+            raise ValueError("BPE merges must contain token pairs")
+        return cls(
+            vocab=tuple(str(token) for token in payload["vocab"]),
+            merges=merges,
+            chars=tuple(str(char) for char in payload["chars"]),
+        )
+
     @property
     def vocab_size(self) -> int:
         return len(self.vocab)

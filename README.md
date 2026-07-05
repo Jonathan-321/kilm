@@ -32,8 +32,9 @@ The runnable sandbox now supports two tokenizer paths:
 - `bpe`: small character-seeded BPE tokenizer.
 
 Both paths run through the same tiny causal Transformer training loop and write
-the same summary artifacts. This still uses toy data, so it proves wiring and
-debuggability, not model quality.
+the same summary artifacts. Runs are tied to an explicit corpus manifest and can
+save checkpoints for later sampling. This still uses toy data, so it proves
+wiring and debuggability, not model quality.
 
 ## Why Keep Character-Level
 
@@ -61,6 +62,23 @@ python3 scripts/run_track_a_sandbox.py \
   --out-dir experiments/runs/bpe_smoke
 ```
 
+Compare tokenizers without training:
+
+```bash
+python3 scripts/analyze_tokenizers.py \
+  --bpe-vocab-size 64 \
+  --out-dir experiments/analysis/tokenizers_smoke
+```
+
+Sample from a saved checkpoint:
+
+```bash
+python3 scripts/sample_checkpoint.py \
+  experiments/runs/bpe_smoke/checkpoint.pt \
+  --prompt Muraho \
+  --sample-tokens 80
+```
+
 Outputs are written to:
 
 ```text
@@ -73,9 +91,23 @@ Each run writes:
 - `sample.txt`,
 - `vocab.json`,
 - `tokenizer.json`.
+- `checkpoint.pt` unless `--no-save-checkpoint` is passed.
 
 Experiment output folders are local artifacts and should not be committed by
 default.
+
+## Corpus Manifest
+
+Known corpora are declared in:
+
+```text
+data/corpora.json
+```
+
+The default `toy` corpus is allowed for smoke tests. Any direct `--corpus` path
+or manifest entry with a non-`approved`/non-`toy` status is blocked unless
+`--allow-unapproved-corpus` is passed. That escape hatch is for local debugging,
+not for claiming training data is approved.
 
 ## Repository Boundary
 
@@ -116,4 +148,4 @@ Until those gates pass, Track B remains a fallback for usefulness.
 1. Add an approved tiny corpus.
 2. Compare char tokenizer vs BPE tokenizer on approved text.
 3. Add a short model-card style interpretation.
-4. Add checkpoint save/load once runs stop being disposable.
+4. Add a less tiny model config once the data gate passes.
