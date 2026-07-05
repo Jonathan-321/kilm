@@ -82,6 +82,9 @@ def parse_args() -> argparse.Namespace:
         default="auto",
     )
     parser.add_argument("--sample-tokens", type=int, default=160)
+    parser.add_argument("--sample-temperature", type=float, default=1.0)
+    parser.add_argument("--sample-top-k", type=int, default=0)
+    parser.add_argument("--sample-interval", type=int, default=0)
     parser.add_argument("--prompt", default="Muraho")
     parser.add_argument(
         "--save-checkpoint",
@@ -211,6 +214,26 @@ def split_or_encode_explicit_val(
     return train_token_ids[:split_idx], train_token_ids[split_idx - block_size :]
 
 
+def generate_sample(
+    *,
+    model: TinyTransformerLM,
+    tokenizer: AnyTokenizer,
+    prompt_token_ids: list[int],
+    sample_tokens: int,
+    temperature: float,
+    top_k: int,
+    device: torch.device,
+) -> str:
+    prompt_ids = torch.tensor([prompt_token_ids], dtype=torch.long, device=device)
+    generated = model.generate(
+        prompt_ids,
+        max_new_tokens=sample_tokens,
+        temperature=temperature,
+        top_k=top_k or None,
+    )
+    return tokenizer.decode(generated[0].tolist())
+
+
 @torch.no_grad()
 def estimate_loss(
     model: TinyTransformerLM,
@@ -283,6 +306,7 @@ def main() -> int:
     )
     total_characters = len(text) + (len(val_text) if val_text else 0)
     total_tokens = len(train_data) + len(val_data)
+    args.out_dir.mkdir(parents=True, exist_ok=True)
 
     model = TinyTransformerLM(config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
@@ -293,6 +317,12 @@ def main() -> int:
 
     start_time = time.time()
     losses: list[dict[str, float | int]] = []
+    sample_snapshots: list[dict[str, object]] = []
+    prompt, prompt_token_ids = encode_prompt(
+        tokenizer,
+        prompt=args.prompt,
+        fallback_text=text,
+    )
     initial_loss = estimate_loss(
         model,
         val_data,
@@ -348,6 +378,25 @@ def main() -> int:
                 f"step {step:04d} train_loss={loss.item():.4f} "
                 f"val_loss={val_loss:.4f}"
             )
+        if args.sample_interval > 0 and step % args.sample_interval == 0:
+            snapshot = generate_sample(
+                model=model,
+                tokenizer=tokenizer,
+                prompt_token_ids=prompt_token_ids,
+                sample_tokens=args.sample_tokens,
+                temperature=args.sample_temperature,
+                top_k=args.sample_top_k,
+                device=device,
+            )
+            sample_path = args.out_dir / f"sample_step_{step:06d}.txt"
+            sample_path.write_text(snapshot + "\n", encoding="utf-8")
+            sample_snapshots.append(
+                {
+                    "step": step,
+                    "path": str(sample_path),
+                    "sample": snapshot,
+                }
+            )
         if args.checkpoint_interval > 0 and step % args.checkpoint_interval == 0:
             save_training_checkpoint(
                 path=args.out_dir / f"checkpoint_step_{step:06d}.pt",
@@ -358,18 +407,18 @@ def main() -> int:
                 summary={"step": step, "loss": float(loss.item())},
             )
 
-    prompt, prompt_token_ids = encode_prompt(
-        tokenizer,
-        prompt=args.prompt,
-        fallback_text=text,
+    sample = generate_sample(
+        model=model,
+        tokenizer=tokenizer,
+        prompt_token_ids=prompt_token_ids,
+        sample_tokens=args.sample_tokens,
+        temperature=args.sample_temperature,
+        top_k=args.sample_top_k,
+        device=device,
     )
-    prompt_ids = torch.tensor([prompt_token_ids], dtype=torch.long, device=device)
-    generated = model.generate(prompt_ids, max_new_tokens=args.sample_tokens)
-    sample = tokenizer.decode(generated[0].tolist())
     final_loss = float(losses[-1]["val_loss"] if losses else initial_loss)
     final_perplexity = safe_perplexity(final_loss)
 
-    args.out_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = args.out_dir / "checkpoint.pt" if args.save_checkpoint else None
     tokenizer_payload = tokenizer.to_dict()
     previous_tokenizer_summary = (
@@ -409,6 +458,9 @@ def main() -> int:
         "warmup_steps": args.warmup_steps,
         "grad_clip": args.grad_clip,
         "checkpoint_interval": args.checkpoint_interval,
+        "sample_interval": args.sample_interval,
+        "sample_temperature": args.sample_temperature,
+        "sample_top_k": args.sample_top_k,
         "initial_val_loss": float(initial_loss),
         "final_val_loss": final_loss,
         "initial_val_perplexity": initial_perplexity,
@@ -416,6 +468,7 @@ def main() -> int:
         "losses": losses,
         "prompt": prompt,
         "sample": sample,
+        "sample_snapshots": sample_snapshots,
         "checkpoint": str(checkpoint_path) if checkpoint_path else None,
         "resumed_from": str(args.resume_checkpoint) if args.resume_checkpoint else None,
         "elapsed_seconds": round(time.time() - start_time, 3),

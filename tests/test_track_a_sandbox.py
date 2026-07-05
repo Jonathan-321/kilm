@@ -217,6 +217,29 @@ def test_select_device_accepts_cpu():
     assert select_device("cpu").type == "cpu"
 
 
+def test_generate_top_k_preserves_training_mode():
+    torch.manual_seed(0)
+    config = TinyTransformerConfig(
+        vocab_size=8,
+        block_size=4,
+        n_layer=1,
+        n_head=1,
+        n_embd=8,
+        dropout=0.0,
+    )
+    model = TinyTransformerLM(config)
+    model.train()
+
+    generated = model.generate(
+        torch.tensor([[0, 1]], dtype=torch.long),
+        max_new_tokens=2,
+        top_k=3,
+    )
+
+    assert generated.shape == (1, 4)
+    assert model.training
+
+
 def test_run_report_renders_key_fields():
     summary = {
         "corpus": {
@@ -247,6 +270,9 @@ def test_run_report_renders_key_fields():
         "warmup_steps": 1,
         "grad_clip": 1.0,
         "checkpoint_interval": 2,
+        "sample_interval": 2,
+        "sample_temperature": 0.8,
+        "sample_top_k": 40,
         "losses": [
             {
                 "step": 2,
@@ -259,6 +285,13 @@ def test_run_report_renders_key_fields():
         "elapsed_seconds": 0.5,
         "prompt": "Muraho",
         "sample": "Muraho neza",
+        "sample_snapshots": [
+            {
+                "step": 2,
+                "path": "sample_step_000002.txt",
+                "sample": "Muraho neza",
+            }
+        ],
         "interpretation": "Toy only.",
         "checkpoint": "checkpoint.pt",
         "resumed_from": "previous.pt",
@@ -270,6 +303,7 @@ def test_run_report_renders_key_fields():
     assert "Validation Corpus" in report
     assert "Learning-rate schedule" in report
     assert "Loss Trace" in report
+    assert "Sample Snapshots" in report
     assert "Muraho neza" in report
     assert "checkpoint.pt" in report
     assert "previous.pt" in report

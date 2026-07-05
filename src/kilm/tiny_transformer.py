@@ -123,13 +123,25 @@ class TinyTransformerLM(nn.Module):
         idx: torch.Tensor,
         max_new_tokens: int,
         temperature: float = 1.0,
+        top_k: int | None = None,
     ) -> torch.Tensor:
+        if temperature <= 0:
+            raise ValueError("temperature must be positive")
+
+        was_training = self.training
         self.eval()
-        for _ in range(max_new_tokens):
-            idx_cond = idx[:, -self.config.block_size :]
-            logits, _ = self(idx_cond)
-            logits = logits[:, -1, :] / temperature
-            probs = F.softmax(logits, dim=-1)
-            next_idx = torch.multinomial(probs, num_samples=1)
-            idx = torch.cat((idx, next_idx), dim=1)
+        try:
+            for _ in range(max_new_tokens):
+                idx_cond = idx[:, -self.config.block_size :]
+                logits, _ = self(idx_cond)
+                logits = logits[:, -1, :] / temperature
+                if top_k is not None and top_k > 0 and top_k < logits.size(-1):
+                    values, _ = torch.topk(logits, top_k)
+                    logits = logits.masked_fill(logits < values[:, [-1]], -float("inf"))
+                probs = F.softmax(logits, dim=-1)
+                next_idx = torch.multinomial(probs, num_samples=1)
+                idx = torch.cat((idx, next_idx), dim=1)
+        finally:
+            if was_training:
+                self.train()
         return idx

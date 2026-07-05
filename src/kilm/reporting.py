@@ -76,6 +76,9 @@ def render_run_report(summary: dict[str, object]) -> str:
             f"- Warmup steps: `{summary.get('warmup_steps', 'n/a')}`",
             f"- Gradient clipping: `{summary.get('grad_clip', 'n/a')}`",
             f"- Checkpoint interval: `{summary.get('checkpoint_interval', 'n/a')}`",
+            f"- Sample interval: `{summary.get('sample_interval', 'n/a')}`",
+            f"- Sample temperature: `{summary.get('sample_temperature', 'n/a')}`",
+            f"- Sample top-k: `{summary.get('sample_top_k', 'n/a')}`",
             "",
             "## Sample",
             "",
@@ -108,6 +111,15 @@ def render_run_report(summary: dict[str, object]) -> str:
                     val_loss=_fmt(row["val_loss"]),
                     lr=_fmt(row.get("learning_rate", "n/a")),
                     grad_norm=_fmt(row.get("grad_norm", "n/a")),
+                )
+            )
+    if summary.get("sample_snapshots"):
+        lines.extend(["", "## Sample Snapshots", ""])
+        for snapshot in summary["sample_snapshots"]:
+            lines.append(
+                "- Step `{step}`: `{path}`".format(
+                    step=snapshot["step"],
+                    path=snapshot["path"],
                 )
             )
     if summary.get("checkpoint"):
