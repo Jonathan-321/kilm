@@ -1,5 +1,39 @@
 # Track A Sandbox Run Notes
 
+## 2026-07-05 Resume Smoke Run
+
+Commands:
+
+```bash
+python3 scripts/run_track_a_sandbox.py \
+  --tokenizer bpe \
+  --bpe-vocab-size 64 \
+  --max-steps 2 \
+  --eval-interval 1 \
+  --out-dir experiments/runs/resume_base
+
+python3 scripts/run_track_a_sandbox.py \
+  --resume-checkpoint experiments/runs/resume_base/checkpoint.pt \
+  --max-steps 2 \
+  --eval-interval 1 \
+  --out-dir experiments/runs/resume_next
+```
+
+Result:
+
+```text
+base final_val_loss=4.0818
+resume initial_val_loss=4.0783
+resume final_val_loss=3.8476
+resume checkpoint saved and sampleable
+```
+
+Interpretation:
+
+Checkpoint resume now works. The resumed run reuses the saved tokenizer and
+model config, loads model weights and optimizer state, then writes a new
+checkpoint and run report.
+
 ## 2026-07-05 Prepared Split Smoke Run
 
 Commands:

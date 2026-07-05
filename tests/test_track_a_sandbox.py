@@ -189,6 +189,7 @@ def test_run_report_renders_key_fields():
         "sample": "Muraho neza",
         "interpretation": "Toy only.",
         "checkpoint": "checkpoint.pt",
+        "resumed_from": "previous.pt",
     }
 
     report = render_run_report(summary)
@@ -197,6 +198,7 @@ def test_run_report_renders_key_fields():
     assert "Validation Corpus" in report
     assert "Muraho neza" in report
     assert "checkpoint.pt" in report
+    assert "previous.pt" in report
 
 
 def test_comparison_report_renders_rows():

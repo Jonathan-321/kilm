@@ -18,10 +18,11 @@ if str(SRC) not in sys.path:
 
 import torch
 
+from kilm.checkpointing import load_checkpoint
 from kilm.corpus import load_corpus_text
 from kilm.reporting import render_run_report
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
-from kilm.tokenizers import AnyTokenizer, train_tokenizer
+from kilm.tokenizers import AnyTokenizer, tokenizer_from_dict, train_tokenizer
 
 
 DEFAULT_MANIFEST = ROOT / "data" / "corpora.json"
@@ -57,6 +58,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prompt", default="Muraho")
     parser.add_argument(
         "--save-checkpoint",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument("--resume-checkpoint", type=Path, default=None)
+    parser.add_argument(
+        "--resume-optimizer",
         action=argparse.BooleanOptionalAction,
         default=True,
     )
@@ -190,36 +197,49 @@ def main() -> int:
     set_seed(args.seed)
 
     corpus, text, val_corpus, val_text = load_train_val_texts(args)
-    tokenizer_text = (
-        text
-        if args.tokenizer_fit_scope == "train" or val_text is None
-        else text + "\n" + val_text
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    checkpoint = (
+        load_checkpoint(args.resume_checkpoint, device)
+        if args.resume_checkpoint
+        else None
     )
-    tokenizer = train_tokenizer(
-        args.tokenizer,
-        tokenizer_text,
-        bpe_vocab_size=args.bpe_vocab_size,
-        bpe_min_frequency=args.bpe_min_frequency,
-    )
+    if checkpoint:
+        tokenizer = tokenizer_from_dict(checkpoint["tokenizer"])
+        config = TinyTransformerConfig(**checkpoint["config"])
+    else:
+        tokenizer_text = (
+            text
+            if args.tokenizer_fit_scope == "train" or val_text is None
+            else text + "\n" + val_text
+        )
+        tokenizer = train_tokenizer(
+            args.tokenizer,
+            tokenizer_text,
+            bpe_vocab_size=args.bpe_vocab_size,
+            bpe_min_frequency=args.bpe_min_frequency,
+        )
+        config = TinyTransformerConfig(
+            vocab_size=tokenizer.vocab_size,
+            block_size=args.block_size,
+            n_layer=args.n_layer,
+            n_head=args.n_head,
+            n_embd=args.n_embd,
+        )
     train_data, val_data = split_or_encode_explicit_val(
         tokenizer=tokenizer,
         train_text=text,
         val_text=val_text,
-        block_size=args.block_size,
+        block_size=config.block_size,
     )
     total_characters = len(text) + (len(val_text) if val_text else 0)
     total_tokens = len(train_data) + len(val_data)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    config = TinyTransformerConfig(
-        vocab_size=tokenizer.vocab_size,
-        block_size=args.block_size,
-        n_layer=args.n_layer,
-        n_head=args.n_head,
-        n_embd=args.n_embd,
-    )
     model = TinyTransformerLM(config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
+    if checkpoint:
+        model.load_state_dict(checkpoint["model_state_dict"])
+        if args.resume_optimizer and "optimizer_state_dict" in checkpoint:
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     start_time = time.time()
     losses: list[dict[str, float | int]] = []
@@ -278,6 +298,10 @@ def main() -> int:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path = args.out_dir / "checkpoint.pt" if args.save_checkpoint else None
+    tokenizer_payload = tokenizer.to_dict()
+    previous_tokenizer_summary = (
+        checkpoint.get("summary", {}).get("tokenizer", {}) if checkpoint else {}
+    )
     summary = {
         "args": serializable_args(args),
         "corpus": corpus.to_dict(),
@@ -286,12 +310,16 @@ def main() -> int:
         "device": str(device),
         "seed": args.seed,
         "tokenizer": {
-            "type": args.tokenizer,
+            "type": tokenizer_payload["type"],
             "vocab_size": tokenizer.vocab_size,
-            "num_merges": len(tokenizer.to_dict()["merges"]),
-            "fit_scope": args.tokenizer_fit_scope,
+            "num_merges": len(tokenizer_payload["merges"]),
+            "fit_scope": (
+                previous_tokenizer_summary.get("fit_scope")
+                if checkpoint
+                else args.tokenizer_fit_scope
+            ),
             "bpe_min_frequency": (
-                args.bpe_min_frequency if args.tokenizer == "bpe" else None
+                args.bpe_min_frequency if tokenizer_payload["type"] == "bpe" else None
             ),
         },
         "vocab_size": tokenizer.vocab_size,
@@ -310,6 +338,7 @@ def main() -> int:
         "prompt": prompt,
         "sample": sample,
         "checkpoint": str(checkpoint_path) if checkpoint_path else None,
+        "resumed_from": str(args.resume_checkpoint) if args.resume_checkpoint else None,
         "elapsed_seconds": round(time.time() - start_time, 3),
         "interpretation": (
             "Toy sandbox only. A lower loss here proves the loop can learn from "

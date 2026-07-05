@@ -13,6 +13,7 @@ if str(SRC) not in sys.path:
 
 import torch
 
+from kilm.checkpointing import load_checkpoint
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 from kilm.tokenizers import tokenizer_from_dict
 
@@ -25,13 +26,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=1337)
     return parser.parse_args()
-
-
-def load_checkpoint(path: Path, device: torch.device) -> dict[str, object]:
-    try:
-        return torch.load(path, map_location=device, weights_only=False)
-    except TypeError:
-        return torch.load(path, map_location=device)
 
 
 def main() -> int:

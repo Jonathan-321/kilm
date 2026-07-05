@@ -83,6 +83,8 @@ def render_run_report(summary: dict[str, object]) -> str:
     )
     if summary.get("checkpoint"):
         lines.extend(["", "## Checkpoint", "", f"`{summary['checkpoint']}`"])
+    if summary.get("resumed_from"):
+        lines.extend(["", "## Resumed From", "", f"`{summary['resumed_from']}`"])
     return "\n".join(lines).rstrip() + "\n"
 
 

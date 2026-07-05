@@ -108,6 +108,17 @@ python3 scripts/sample_checkpoint.py \
   --sample-tokens 80
 ```
 
+Resume training from a checkpoint:
+
+```bash
+python3 scripts/run_track_a_sandbox.py \
+  --tokenizer bpe \
+  --bpe-vocab-size 64 \
+  --resume-checkpoint experiments/runs/bpe_smoke/checkpoint.pt \
+  --max-steps 20 \
+  --out-dir experiments/runs/bpe_resume_smoke
+```
+
 Compare completed runs:
 
 ```bash
