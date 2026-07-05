@@ -70,6 +70,14 @@ python3 scripts/analyze_tokenizers.py \
   --out-dir experiments/analysis/tokenizers_smoke
 ```
 
+Prepare a corpus into cleaned train/validation files:
+
+```bash
+python3 scripts/prepare_corpus.py \
+  --corpus-id toy \
+  --out-dir data/processed/toy
+```
+
 Sample from a saved checkpoint:
 
 ```bash
@@ -118,6 +126,10 @@ The default `toy` corpus is allowed for smoke tests. Any direct `--corpus` path
 or manifest entry with a non-`approved`/non-`toy` status is blocked unless
 `--allow-unapproved-corpus` is passed. That escape hatch is for local debugging,
 not for claiming training data is approved.
+
+Prepared corpus outputs under `data/processed/` are local artifacts by default.
+Each prepared folder contains `full.txt`, `train.txt`, `val.txt`, `stats.json`,
+`corpora.json`, and `corpus_card.md`.
 
 ## Repository Boundary
 

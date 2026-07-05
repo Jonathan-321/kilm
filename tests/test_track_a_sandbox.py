@@ -6,6 +6,7 @@ from kilm.analysis import summarize_tokenizer
 from kilm.bpe_tokenizer import BpeTokenizer
 from kilm.char_tokenizer import CharTokenizer
 from kilm.corpus import load_corpus_text, load_manifest
+from kilm.preprocessing import prepare_lines, split_lines
 from kilm.reporting import render_comparison_report, render_run_report
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 from kilm.tokenizers import tokenizer_from_dict
@@ -133,6 +134,30 @@ def test_tokenizer_summary_reports_compression():
 
     assert bpe_summary["num_tokens"] < char_summary["num_tokens"]
     assert bpe_summary["tokens_per_word"] < char_summary["tokens_per_word"]
+
+
+def test_prepare_lines_normalizes_filters_and_dedupes():
+    prepared = prepare_lines(
+        "  Muraho   neza  \n\nNi\nMuraho neza\nAmakuru?\n",
+        min_line_chars=3,
+    )
+
+    assert prepared.lines == ["Muraho neza", "Amakuru?"]
+    assert prepared.stats["removed_blank_lines"] == 1
+    assert prepared.stats["removed_short_lines"] == 1
+    assert prepared.stats["removed_duplicate_lines"] == 1
+
+
+def test_split_lines_is_reproducible():
+    lines = [f"line {idx}" for idx in range(10)]
+
+    train_a, val_a = split_lines(lines, val_fraction=0.2, seed=7)
+    train_b, val_b = split_lines(lines, val_fraction=0.2, seed=7)
+
+    assert train_a == train_b
+    assert val_a == val_b
+    assert len(train_a) == 8
+    assert len(val_a) == 2
 
 
 def test_run_report_renders_key_fields():
