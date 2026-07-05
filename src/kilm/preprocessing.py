@@ -101,6 +101,21 @@ def render_corpus_card(
     seed: int,
 ) -> str:
     stats = prepared.stats
+    if source.status == "approved":
+        use_note = (
+            "This source is marked approved in the local manifest. Preserve "
+            "license terms, attribution, and source-card metadata in reports."
+        )
+    elif source.status == "toy":
+        use_note = (
+            "Use this prepared corpus only for smoke tests and debugging. "
+            "A `toy` source is not approved model-training data."
+        )
+    else:
+        use_note = (
+            "Use this prepared corpus only within the status allowed by the "
+            "source record."
+        )
     lines = [
         "# Corpus Card",
         "",
@@ -132,7 +147,6 @@ def render_corpus_card(
         "",
         "## Use",
         "",
-        "Use this prepared corpus only within the status allowed by the source "
-        "record. A `toy` source is still not approved model-training data.",
+        use_note,
     ]
     return "\n".join(lines).rstrip() + "\n"

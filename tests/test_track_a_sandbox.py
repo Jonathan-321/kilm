@@ -6,10 +6,12 @@ from kilm.analysis import summarize_tokenizer
 from kilm.bpe_tokenizer import BpeTokenizer
 from kilm.char_tokenizer import CharTokenizer
 from kilm.corpus import load_corpus_text, load_manifest
+from kilm.configs import build_model_config
 from kilm.preprocessing import prepare_lines, split_lines
 from kilm.reporting import render_comparison_report, render_run_report
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 from kilm.tokenizers import tokenizer_from_dict
+from kilm.training import learning_rate_for_step
 
 
 def test_char_tokenizer_round_trips_text():
@@ -160,6 +162,57 @@ def test_split_lines_is_reproducible():
     assert len(val_a) == 2
 
 
+def test_model_config_preset_allows_overrides(tmp_path):
+    presets_path = tmp_path / "configs.json"
+    presets_path.write_text(
+        json.dumps(
+            {
+                "tiny": {
+                    "block_size": 8,
+                    "n_layer": 1,
+                    "n_head": 1,
+                    "n_embd": 16,
+                    "dropout": 0.0,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config = build_model_config(
+        presets_path=presets_path,
+        preset_name="tiny",
+        vocab_size=10,
+        overrides={"block_size": 12, "n_layer": None},
+    )
+
+    assert config.vocab_size == 10
+    assert config.block_size == 12
+    assert config.n_layer == 1
+
+
+def test_cosine_learning_rate_decays_after_warmup():
+    warmup_lr = learning_rate_for_step(
+        step=1,
+        max_steps=10,
+        base_lr=1.0,
+        min_lr=0.1,
+        warmup_steps=2,
+        schedule="cosine",
+    )
+    final_lr = learning_rate_for_step(
+        step=10,
+        max_steps=10,
+        base_lr=1.0,
+        min_lr=0.1,
+        warmup_steps=2,
+        schedule="cosine",
+    )
+
+    assert warmup_lr == 0.5
+    assert round(final_lr, 4) == 0.1
+
+
 def test_run_report_renders_key_fields():
     summary = {
         "corpus": {
@@ -184,6 +237,21 @@ def test_run_report_renders_key_fields():
         "final_val_perplexity": 3.32,
         "initial_val_loss": 4.2,
         "initial_val_perplexity": 66.0,
+        "max_steps": 4,
+        "eval_iters": 2,
+        "lr_schedule": "cosine",
+        "warmup_steps": 1,
+        "grad_clip": 1.0,
+        "checkpoint_interval": 2,
+        "losses": [
+            {
+                "step": 2,
+                "train_loss": 1.4,
+                "val_loss": 1.3,
+                "learning_rate": 0.01,
+                "grad_norm": 0.5,
+            }
+        ],
         "elapsed_seconds": 0.5,
         "prompt": "Muraho",
         "sample": "Muraho neza",
@@ -196,6 +264,8 @@ def test_run_report_renders_key_fields():
 
     assert "Final validation loss" in report
     assert "Validation Corpus" in report
+    assert "Learning-rate schedule" in report
+    assert "Loss Trace" in report
     assert "Muraho neza" in report
     assert "checkpoint.pt" in report
     assert "previous.pt" in report

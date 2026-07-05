@@ -8,6 +8,24 @@
       "source": "Hand-written local sandbox text",
       "license": "not a training dataset",
       "notes": "Use only for smoke tests and debugging. Do not treat as approved Kinyarwanda training data."
+    },
+    {
+      "id": "digital-umuganda-tts-rw",
+      "path": "approved/digital_umuganda_tts_rw.txt",
+      "status": "approved",
+      "description": "Kinyarwanda text extracted from DigitalUmuganda/kinyarwanda-tts-dataset.",
+      "source": "https://huggingface.co/datasets/DigitalUmuganda/kinyarwanda-tts-dataset",
+      "license": "cc0-1.0",
+      "notes": "Fetch locally with scripts/fetch_approved_corpus.py. Keep generated text out of Git."
+    },
+    {
+      "id": "digital-umuganda-mt-rw",
+      "path": "approved/digital_umuganda_mt_rw.txt",
+      "status": "approved",
+      "description": "Kinyarwanda side extracted from DigitalUmuganda/kinyarwanda-english-machine-translation-dataset.",
+      "source": "https://huggingface.co/datasets/DigitalUmuganda/kinyarwanda-english-machine-translation-dataset",
+      "license": "cc-by-4.0",
+      "notes": "Fetch locally with scripts/fetch_approved_corpus.py. Preserve attribution in reports."
     }
   ]
 }

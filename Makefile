@@ -1,4 +1,4 @@
-.PHONY: test analyze smoke prepare prepared-smoke compare clean
+.PHONY: test analyze fetch-approved morphology review-packet smoke prepare prepared-smoke compare clean
 
 test:
 	PYTHONPATH=src python3 -m pytest -q
@@ -7,6 +7,22 @@ analyze:
 	python3 scripts/analyze_tokenizers.py \
 		--bpe-vocab-size 64 \
 		--out-dir experiments/analysis/tokenizers_smoke
+
+fetch-approved:
+	python3 scripts/fetch_approved_corpus.py \
+		--source digital-umuganda-tts-rw \
+		--limit 1000
+
+morphology:
+	python3 scripts/evaluate_tokenizer_examples.py \
+		--manifest data/processed/digital_umuganda_tts_1k/corpora.json \
+		--corpus-id digital-umuganda-tts-rw-full \
+		--bpe-vocab-size 512 \
+		--out-dir experiments/analysis/du_tts_1k_morphology
+
+review-packet:
+	python3 scripts/create_review_packet.py \
+		experiments/runs/du_tts_1k_tiny_baseline
 
 smoke:
 	python3 scripts/run_track_a_sandbox.py \

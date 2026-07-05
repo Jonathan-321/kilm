@@ -68,6 +68,15 @@ def render_run_report(summary: dict[str, object]) -> str:
             f"- Train tokens: `{summary['train_tokens']}`",
             f"- Validation tokens: `{summary['val_tokens']}`",
             "",
+            "## Training",
+            "",
+            f"- Max steps: `{summary.get('max_steps', 'n/a')}`",
+            f"- Evaluation batches: `{summary.get('eval_iters', 'n/a')}`",
+            f"- Learning-rate schedule: `{summary.get('lr_schedule', 'n/a')}`",
+            f"- Warmup steps: `{summary.get('warmup_steps', 'n/a')}`",
+            f"- Gradient clipping: `{summary.get('grad_clip', 'n/a')}`",
+            f"- Checkpoint interval: `{summary.get('checkpoint_interval', 'n/a')}`",
+            "",
             "## Sample",
             "",
             f"Prompt: `{summary['prompt']}`",
@@ -81,6 +90,26 @@ def render_run_report(summary: dict[str, object]) -> str:
             str(summary["interpretation"]),
         ]
     )
+    if summary.get("losses"):
+        lines.extend(
+            [
+                "",
+                "## Loss Trace",
+                "",
+                "| step | train loss | val loss | lr | grad norm |",
+                "| ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        for row in summary["losses"]:
+            lines.append(
+                "| {step} | {train_loss} | {val_loss} | {lr} | {grad_norm} |".format(
+                    step=row["step"],
+                    train_loss=_fmt(row["train_loss"]),
+                    val_loss=_fmt(row["val_loss"]),
+                    lr=_fmt(row.get("learning_rate", "n/a")),
+                    grad_norm=_fmt(row.get("grad_norm", "n/a")),
+                )
+            )
     if summary.get("checkpoint"):
         lines.extend(["", "## Checkpoint", "", f"`{summary['checkpoint']}`"])
     if summary.get("resumed_from"):

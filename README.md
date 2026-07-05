@@ -26,15 +26,22 @@ text corpus
 
 ## Current Stage
 
-The runnable sandbox now supports two tokenizer paths:
+The runnable sandbox now supports approved-corpus baseline runs, not only toy
+smoke tests. It can fetch approved source text into local ignored files,
+prepare train/validation splits, compare tokenizers, evaluate morphology-focused
+examples, train a tiny baseline with a learning-rate schedule, write interval
+checkpoints, and generate data/model cards plus a sample-review sheet.
+
+Two tokenizer paths are available:
 
 - `char`: character-level baseline,
 - `bpe`: small character-seeded BPE tokenizer.
 
 Both paths run through the same tiny causal Transformer training loop and write
-the same summary artifacts. Runs are tied to an explicit corpus manifest and can
-save checkpoints for later sampling. This still uses toy data, so it proves
-wiring and debuggability, not model quality.
+the same summary artifacts. Runs are tied to an explicit corpus manifest and
+can save checkpoints for later sampling. The approved-data path now gives a real
+baseline signal, but it is still not a useful model-quality claim until longer
+training and fluent-speaker review happen.
 
 ## Why Keep Character-Level
 
@@ -76,27 +83,63 @@ python3 scripts/analyze_tokenizers.py \
   --out-dir experiments/analysis/tokenizers_smoke
 ```
 
+Fetch the approved Digital Umuganda TTS sentence subset into local ignored data:
+
+```bash
+python3 scripts/fetch_approved_corpus.py \
+  --source digital-umuganda-tts-rw \
+  --limit 1000
+```
+
 Prepare a corpus into cleaned train/validation files:
 
 ```bash
 python3 scripts/prepare_corpus.py \
-  --corpus-id toy \
-  --out-dir data/processed/toy
+  --corpus-id digital-umuganda-tts-rw \
+  --out-dir data/processed/digital_umuganda_tts_1k \
+  --val-fraction 0.1 \
+  --min-line-chars 5
 ```
 
 Train with an explicit prepared validation split:
 
 ```bash
 python3 scripts/run_track_a_sandbox.py \
-  --manifest data/processed/toy/corpora.json \
-  --corpus-id toy-train \
-  --val-corpus-id toy-val \
+  --manifest data/processed/digital_umuganda_tts_1k/corpora.json \
+  --corpus-id digital-umuganda-tts-rw-train \
+  --val-corpus-id digital-umuganda-tts-rw-val \
   --tokenizer bpe \
   --tokenizer-fit-scope train-val \
-  --bpe-vocab-size 48 \
-  --block-size 8 \
-  --max-steps 40 \
-  --out-dir experiments/runs/prepared_bpe_smoke
+  --bpe-vocab-size 512 \
+  --model-config tiny \
+  --max-steps 20 \
+  --eval-interval 5 \
+  --eval-iters 2 \
+  --batch-size 16 \
+  --learning-rate 0.001 \
+  --min-learning-rate 0.0001 \
+  --lr-schedule cosine \
+  --warmup-steps 2 \
+  --grad-clip 1.0 \
+  --checkpoint-interval 10 \
+  --out-dir experiments/runs/du_tts_1k_tiny_baseline
+```
+
+Run morphology-focused tokenizer evaluation:
+
+```bash
+python3 scripts/evaluate_tokenizer_examples.py \
+  --manifest data/processed/digital_umuganda_tts_1k/corpora.json \
+  --corpus-id digital-umuganda-tts-rw-full \
+  --bpe-vocab-size 512 \
+  --out-dir experiments/analysis/du_tts_1k_morphology
+```
+
+Generate the data card, model card, and sample review sheet for a run:
+
+```bash
+python3 scripts/create_review_packet.py \
+  experiments/runs/du_tts_1k_tiny_baseline
 ```
 
 Sample from a saved checkpoint:
@@ -131,6 +174,9 @@ python3 scripts/compare_runs.py \
 The common local workflow is also available as:
 
 ```bash
+make fetch-approved
+make morphology
+make review-packet
 make analyze
 make smoke
 make prepared-smoke
@@ -150,7 +196,8 @@ Each run writes:
 - `sample.txt`,
 - `vocab.json`,
 - `tokenizer.json`.
-- `checkpoint.pt` unless `--no-save-checkpoint` is passed.
+- `checkpoint.pt` unless `--no-save-checkpoint` is passed,
+- `checkpoint_step_*.pt` when `--checkpoint-interval` is set.
 
 Experiment output folders are local artifacts and should not be committed by
 default.
@@ -167,6 +214,10 @@ The default `toy` corpus is allowed for smoke tests. Any direct `--corpus` path
 or manifest entry with a non-`approved`/non-`toy` status is blocked unless
 `--allow-unapproved-corpus` is passed. That escape hatch is for local debugging,
 not for claiming training data is approved.
+
+Approved source text under `data/approved/` and raw downloads under `data/raw/`
+are local artifacts and are ignored by Git. Re-fetch them from manifest/source
+definitions when needed.
 
 Prepared corpus outputs under `data/processed/` are local artifacts by default.
 Each prepared folder contains `full.txt`, `train.txt`, `val.txt`, `stats.json`,
@@ -187,11 +238,16 @@ status summaries back into the main `kinyalm` planning repo.
 The sandbox is successful if:
 
 - the script runs from a fresh checkout,
+- approved source text can be fetched into an ignored local corpus,
 - the tokenizer round-trips text with `decode(encode(text))`,
-- training loss moves downward on the toy corpus,
+- BPE compression and morphology splits are inspectable on approved text,
+- validation loss/perplexity are measured on held-out approved Kinyarwanda text,
+- learning-rate schedule, gradient clipping, and checkpoint intervals are
+  recorded in run metadata,
 - sample generation produces non-empty text,
 - the summary file records config, losses, perplexity, tokenizer metadata, and
-  sample output.
+  sample output,
+- the run can produce a data card, model card, and speaker review sheet.
 
 This does not mean the final Kinyarwanda LM is successful. It only means the
 learning pipeline is wired together.
@@ -212,7 +268,10 @@ Until those gates pass, Track B remains a fallback for usefulness.
 
 ## Next Sandbox Stages
 
-1. Add an approved tiny corpus.
-2. Compare char tokenizer vs BPE tokenizer on approved text.
-3. Add a short model-card style interpretation.
-4. Add a less tiny model config once the data gate passes.
+1. Run the same path on the full approved TTS text and the approved MT
+   Kinyarwanda side.
+2. Move from `tiny` to `small` or `baseline_gpu` once GPU memory is confirmed.
+3. Increase steps and evaluation intervals enough for a meaningful loss curve.
+4. Send `sample_review.tsv` to fluent speakers and fold the feedback into the
+   model card.
+5. Decide whether the next training run needs more corpus cleanup before scale.

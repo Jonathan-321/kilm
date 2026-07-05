@@ -1,5 +1,77 @@
 # Track A Sandbox Run Notes
 
+## 2026-07-05 Approved TTS 1k Baseline
+
+Commands:
+
+```bash
+python3 scripts/fetch_approved_corpus.py \
+  --source digital-umuganda-tts-rw \
+  --limit 1000
+
+python3 scripts/prepare_corpus.py \
+  --corpus-id digital-umuganda-tts-rw \
+  --out-dir data/processed/digital_umuganda_tts_1k \
+  --val-fraction 0.1 \
+  --min-line-chars 5
+
+python3 scripts/evaluate_tokenizer_examples.py \
+  --manifest data/processed/digital_umuganda_tts_1k/corpora.json \
+  --corpus-id digital-umuganda-tts-rw-full \
+  --bpe-vocab-size 512 \
+  --out-dir experiments/analysis/du_tts_1k_morphology
+
+python3 scripts/run_track_a_sandbox.py \
+  --manifest data/processed/digital_umuganda_tts_1k/corpora.json \
+  --corpus-id digital-umuganda-tts-rw-train \
+  --val-corpus-id digital-umuganda-tts-rw-val \
+  --tokenizer bpe \
+  --tokenizer-fit-scope train-val \
+  --bpe-vocab-size 512 \
+  --model-config tiny \
+  --max-steps 20 \
+  --eval-interval 5 \
+  --eval-iters 2 \
+  --batch-size 16 \
+  --learning-rate 0.001 \
+  --min-learning-rate 0.0001 \
+  --lr-schedule cosine \
+  --warmup-steps 2 \
+  --grad-clip 1.0 \
+  --checkpoint-interval 10 \
+  --out-dir experiments/runs/du_tts_1k_tiny_baseline
+
+python3 scripts/create_review_packet.py \
+  experiments/runs/du_tts_1k_tiny_baseline
+```
+
+Result:
+
+```text
+prepared_lines=1000
+train_lines=900
+val_lines=100
+char tokens=83410
+BPE tokens=32659
+BPE tokens/word=2.8407
+initial_val_loss=6.4005
+final_val_loss=6.2591
+initial_val_perplexity=602.1208
+final_val_perplexity=522.7661
+interval checkpoints written at steps 10 and 20
+```
+
+Interpretation:
+
+This is the first approved-data baseline path. It uses local ignored text
+fetched from an approved manifest source, trains on 900 lines, validates on 100
+held-out lines, records the learning-rate schedule and gradient clipping, and
+writes a sample-review sheet.
+
+The generated sample is still poor, which is expected for a 20-step tiny run.
+The useful result is that the pipeline now measures a real held-out
+Kinyarwanda validation loss and has the artifacts needed to scale the run.
+
 ## 2026-07-05 Resume Smoke Run
 
 Commands:

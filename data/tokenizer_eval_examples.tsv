@@ -1,0 +1,18 @@
+id	category	text	focus	status	notes
+noun_class_umuntu	noun_class	umuntu	umu- prefix / person noun	needs-speaker-review	Singular person noun; check whether tokenizer keeps useful prefix/root pieces visible.
+noun_class_abantu	noun_class	abantu	aba- plural prefix	needs-speaker-review	Plural person noun; compare with umuntu.
+noun_class_umwana	noun_class	umwana	umu- prefix / child noun	needs-speaker-review	Common noun-class example.
+noun_class_abana	noun_class	abana	aba- plural prefix	needs-speaker-review	Plural counterpart for umwana.
+student_singular	noun_class	umunyeshuri	umu- prefix plus learner stem	needs-speaker-review	Useful classroom vocabulary.
+student_plural	noun_class	abanyeshuri	aba- plural prefix plus learner stem	needs-speaker-review	Plural classroom vocabulary.
+language_name	orthography	Ikinyarwanda	capitalized language name	needs-speaker-review	Check whether Iki- stays visible.
+country_phrase	orthography	u Rwanda	space-sensitive country phrase	needs-speaker-review	Check token boundary around u Rwanda.
+location_phrase	orthography	i Kigali	location preposition plus city	needs-speaker-review	Check boundary around i Kigali.
+apostrophe	n_ubwo	n'ubwo	apostrophe boundary	needs-speaker-review	Check apostrophe handling.
+verb_first_singular	verb	ndiga	subject prefix ndi-/n- plus verb	needs-speaker-review	Learner sentence verb form target.
+verb_first_plural	verb	turiga	tu- subject prefix plus verb	needs-speaker-review	Compare with ndiga.
+verb_third_plural	verb	bariga	ba- subject prefix plus verb	needs-speaker-review	Compare with ndiga/turiga.
+infinitive	verb	gukora	ku-/gu- infinitive prefix	needs-speaker-review	Common infinitive form.
+negative_future	verb	ntibazabikora	negative and future/object morphology	needs-speaker-review	Stress test for long agglutinative-looking verb.
+classroom_request	sentence	Subiramo buhoro.	imperative classroom request	needs-speaker-review	Useful tutor-domain sentence.
+help_request	sentence	Mfasha gusobanukirwa iri jambo.	help request morphology	needs-speaker-review	Useful tutor-domain sentence.

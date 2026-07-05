@@ -19,13 +19,21 @@ if str(SRC) not in sys.path:
 import torch
 
 from kilm.checkpointing import load_checkpoint
+from kilm.configs import build_model_config
 from kilm.corpus import load_corpus_text
 from kilm.reporting import render_run_report
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 from kilm.tokenizers import AnyTokenizer, tokenizer_from_dict, train_tokenizer
+from kilm.training import (
+    learning_rate_for_step,
+    maybe_clip_gradients,
+    save_training_checkpoint,
+    set_optimizer_lr,
+)
 
 
 DEFAULT_MANIFEST = ROOT / "data" / "corpora.json"
+DEFAULT_MODEL_CONFIGS = ROOT / "data" / "model_configs.json"
 DEFAULT_OUT_DIR = ROOT / "experiments" / "runs" / "track_a_sandbox"
 
 
@@ -46,14 +54,27 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--bpe-vocab-size", type=int, default=80)
     parser.add_argument("--bpe-min-frequency", type=int, default=2)
+    parser.add_argument("--model-configs", type=Path, default=DEFAULT_MODEL_CONFIGS)
+    parser.add_argument("--model-config", default="tiny")
     parser.add_argument("--max-steps", type=int, default=40)
     parser.add_argument("--eval-interval", type=int, default=10)
+    parser.add_argument("--eval-iters", type=int, default=5)
+    parser.add_argument("--checkpoint-interval", type=int, default=0)
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--block-size", type=int, default=64)
-    parser.add_argument("--n-layer", type=int, default=2)
-    parser.add_argument("--n-head", type=int, default=4)
-    parser.add_argument("--n-embd", type=int, default=64)
+    parser.add_argument("--block-size", type=int, default=None)
+    parser.add_argument("--n-layer", type=int, default=None)
+    parser.add_argument("--n-head", type=int, default=None)
+    parser.add_argument("--n-embd", type=int, default=None)
+    parser.add_argument("--dropout", type=float, default=None)
     parser.add_argument("--learning-rate", type=float, default=3e-3)
+    parser.add_argument("--min-learning-rate", type=float, default=3e-4)
+    parser.add_argument(
+        "--lr-schedule",
+        choices=("constant", "cosine"),
+        default="constant",
+    )
+    parser.add_argument("--warmup-steps", type=int, default=0)
+    parser.add_argument("--grad-clip", type=float, default=1.0)
     parser.add_argument("--sample-tokens", type=int, default=160)
     parser.add_argument("--prompt", default="Muraho")
     parser.add_argument(
@@ -116,6 +137,24 @@ def serializable_args(args: argparse.Namespace) -> dict[str, object]:
         if isinstance(value, Path):
             payload[key] = str(value)
     return payload
+
+
+def interpret_run(status: str) -> str:
+    if status == "toy":
+        return (
+            "Toy sandbox only. A lower loss here proves the loop can learn from "
+            "this tiny corpus; it does not prove Kinyarwanda LM quality."
+        )
+    if status == "approved":
+        return (
+            "Approved-corpus baseline run. Lower validation loss/perplexity is "
+            "a training signal, but it does not prove useful Kinyarwanda "
+            "generation without held-out evaluation and fluent-speaker review."
+        )
+    return (
+        "Unapproved/debug corpus run. Use only for local debugging; do not use "
+        "the result as model-quality evidence."
+    )
 
 
 def load_train_val_texts(args: argparse.Namespace):
@@ -218,12 +257,17 @@ def main() -> int:
             bpe_vocab_size=args.bpe_vocab_size,
             bpe_min_frequency=args.bpe_min_frequency,
         )
-        config = TinyTransformerConfig(
+        config = build_model_config(
+            presets_path=args.model_configs,
+            preset_name=args.model_config,
             vocab_size=tokenizer.vocab_size,
-            block_size=args.block_size,
-            n_layer=args.n_layer,
-            n_head=args.n_head,
-            n_embd=args.n_embd,
+            overrides={
+                "block_size": args.block_size,
+                "n_layer": args.n_layer,
+                "n_head": args.n_head,
+                "n_embd": args.n_embd,
+                "dropout": args.dropout,
+            },
         )
     train_data, val_data = split_or_encode_explicit_val(
         tokenizer=tokenizer,
@@ -247,8 +291,9 @@ def main() -> int:
         model,
         val_data,
         batch_size=args.batch_size,
-        block_size=args.block_size,
+        block_size=config.block_size,
         device=device,
+        eval_iters=args.eval_iters,
     )
     initial_perplexity = safe_perplexity(initial_loss)
 
@@ -256,13 +301,23 @@ def main() -> int:
         x, y = get_batch(
             train_data,
             batch_size=args.batch_size,
-            block_size=args.block_size,
+            block_size=config.block_size,
             device=device,
         )
+        lr = learning_rate_for_step(
+            step=step,
+            max_steps=args.max_steps,
+            base_lr=args.learning_rate,
+            min_lr=args.min_learning_rate,
+            warmup_steps=args.warmup_steps,
+            schedule=args.lr_schedule,
+        )
+        set_optimizer_lr(optimizer, lr)
         _, loss = model(x, y)
         assert loss is not None
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
+        grad_norm = maybe_clip_gradients(model, max_norm=args.grad_clip)
         optimizer.step()
 
         if step % args.eval_interval == 0 or step == args.max_steps:
@@ -270,19 +325,31 @@ def main() -> int:
                 model,
                 val_data,
                 batch_size=args.batch_size,
-                block_size=args.block_size,
+                block_size=config.block_size,
                 device=device,
+                eval_iters=args.eval_iters,
             )
             losses.append(
                 {
                     "step": step,
                     "train_loss": float(loss.item()),
                     "val_loss": float(val_loss),
+                    "learning_rate": lr,
+                    "grad_norm": grad_norm,
                 }
             )
             print(
                 f"step {step:04d} train_loss={loss.item():.4f} "
                 f"val_loss={val_loss:.4f}"
+            )
+        if args.checkpoint_interval > 0 and step % args.checkpoint_interval == 0:
+            save_training_checkpoint(
+                path=args.out_dir / f"checkpoint_step_{step:06d}.pt",
+                model=model,
+                optimizer=optimizer,
+                config=config,
+                tokenizer=tokenizer,
+                summary={"step": step, "loss": float(loss.item())},
             )
 
     prompt, prompt_token_ids = encode_prompt(
@@ -329,7 +396,13 @@ def main() -> int:
         "train_tokens": len(train_data),
         "val_tokens": len(val_data),
         "config": asdict(config),
+        "model_config": args.model_config,
         "max_steps": args.max_steps,
+        "eval_iters": args.eval_iters,
+        "lr_schedule": args.lr_schedule,
+        "warmup_steps": args.warmup_steps,
+        "grad_clip": args.grad_clip,
+        "checkpoint_interval": args.checkpoint_interval,
         "initial_val_loss": float(initial_loss),
         "final_val_loss": final_loss,
         "initial_val_perplexity": initial_perplexity,
@@ -340,10 +413,7 @@ def main() -> int:
         "checkpoint": str(checkpoint_path) if checkpoint_path else None,
         "resumed_from": str(args.resume_checkpoint) if args.resume_checkpoint else None,
         "elapsed_seconds": round(time.time() - start_time, 3),
-        "interpretation": (
-            "Toy sandbox only. A lower loss here proves the loop can learn from "
-            "this tiny corpus; it does not prove Kinyarwanda LM quality."
-        ),
+        "interpretation": interpret_run(corpus.status),
     }
     (args.out_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
@@ -364,15 +434,13 @@ def main() -> int:
         encoding="utf-8",
     )
     if checkpoint_path:
-        torch.save(
-            {
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "config": asdict(config),
-                "tokenizer": tokenizer.to_dict(),
-                "summary": summary,
-            },
-            checkpoint_path,
+        save_training_checkpoint(
+            path=checkpoint_path,
+            model=model,
+            optimizer=optimizer,
+            config=config,
+            tokenizer=tokenizer,
+            summary=summary,
         )
 
     print(f"initial_val_loss={initial_loss:.4f}")
