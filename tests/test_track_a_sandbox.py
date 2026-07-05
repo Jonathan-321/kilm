@@ -1,5 +1,6 @@
 import torch
 
+from kilm.bpe_tokenizer import BpeTokenizer
 from kilm.char_tokenizer import CharTokenizer
 from kilm.tiny_transformer import TinyTransformerConfig, TinyTransformerLM
 
@@ -13,6 +14,32 @@ def test_char_tokenizer_round_trips_text():
 
 def test_char_tokenizer_rejects_unknown_characters():
     tokenizer = CharTokenizer.train("abc")
+
+    try:
+        tokenizer.encode("abcd")
+    except ValueError as error:
+        assert "unknown character" in str(error)
+    else:
+        raise AssertionError("expected unknown character failure")
+
+
+def test_bpe_tokenizer_round_trips_text():
+    text = "Muraho Muraho\nAmakuru?"
+    tokenizer = BpeTokenizer.train(text, vocab_size=24)
+
+    assert tokenizer.decode(tokenizer.encode(text)) == text
+
+
+def test_bpe_tokenizer_learns_repeated_merges():
+    tokenizer = BpeTokenizer.train("banana banana banana", vocab_size=12)
+
+    assert tokenizer.vocab_size > len(tokenizer.chars)
+    assert tokenizer.encode("banana banana")
+    assert tokenizer.decode(tokenizer.encode("banana banana")) == "banana banana"
+
+
+def test_bpe_tokenizer_rejects_unknown_characters():
+    tokenizer = BpeTokenizer.train("abc abc", vocab_size=6)
 
     try:
         tokenizer.encode("abcd")

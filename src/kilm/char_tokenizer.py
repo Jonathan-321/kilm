@@ -48,3 +48,11 @@ class CharTokenizer:
             return "".join(itos[token_id] for token_id in token_ids)
         except KeyError as error:
             raise ValueError(f"unknown token id: {error.args[0]!r}") from error
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "type": "char",
+            "vocab": list(self.chars),
+            "chars": list(self.chars),
+            "merges": [],
+        }

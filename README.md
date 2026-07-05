@@ -26,19 +26,22 @@ text corpus
 
 ## Current Stage
 
-The current runnable sandbox uses a character-level tokenizer. That is not the
-final tokenizer. It is a safe first step because it lets the team understand the
-full LM workflow before implementing and validating BPE.
+The runnable sandbox now supports two tokenizer paths:
 
-## Why Character-Level First
+- `char`: character-level baseline,
+- `bpe`: small character-seeded BPE tokenizer.
 
-Character-level tokenization is not the goal, but it is useful because:
+Both paths run through the same tiny causal Transformer training loop and write
+the same summary artifacts. This still uses toy data, so it proves wiring and
+debuggability, not model quality.
 
-- it avoids unapproved external data,
-- it avoids pretending the BPE tokenizer is done,
+## Why Keep Character-Level
+
+Character-level tokenization is not the goal, but it is still useful because:
+
+- it gives BPE a baseline,
 - it makes encode/decode behavior easy to inspect,
-- it lets us test the training loop with a tiny corpus,
-- it gives the team a baseline before replacing it with BPE.
+- it lets us separate model-loop bugs from tokenizer bugs.
 
 ## Run
 
@@ -48,13 +51,31 @@ From the repo root:
 python3 scripts/run_track_a_sandbox.py --max-steps 40
 ```
 
+Run the BPE path:
+
+```bash
+python3 scripts/run_track_a_sandbox.py \
+  --tokenizer bpe \
+  --bpe-vocab-size 64 \
+  --max-steps 40 \
+  --out-dir experiments/runs/bpe_smoke
+```
+
 Outputs are written to:
 
 ```text
 experiments/runs/track_a_sandbox/
 ```
 
-That folder is local experiment output and should not be committed by default.
+Each run writes:
+
+- `summary.json`,
+- `sample.txt`,
+- `vocab.json`,
+- `tokenizer.json`.
+
+Experiment output folders are local artifacts and should not be committed by
+default.
 
 ## Repository Boundary
 
@@ -70,7 +91,8 @@ The sandbox is successful if:
 - the tokenizer round-trips text with `decode(encode(text))`,
 - training loss moves downward on the toy corpus,
 - sample generation produces non-empty text,
-- the summary file records config, losses, and sample output.
+- the summary file records config, losses, perplexity, tokenizer metadata, and
+  sample output.
 
 This does not mean the final Kinyarwanda LM is successful. It only means the
 learning pipeline is wired together.
@@ -91,8 +113,7 @@ Until those gates pass, Track B remains a fallback for usefulness.
 
 ## Next Sandbox Stages
 
-1. Add BPE tokenizer path.
-2. Add an approved tiny corpus.
-3. Compare char tokenizer vs BPE tokenizer.
-4. Add validation split and perplexity report.
-5. Add a short model-card style interpretation.
+1. Add an approved tiny corpus.
+2. Compare char tokenizer vs BPE tokenizer on approved text.
+3. Add a short model-card style interpretation.
+4. Add checkpoint save/load once runs stop being disposable.

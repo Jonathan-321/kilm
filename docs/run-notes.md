@@ -1,5 +1,46 @@
 # Track A Sandbox Run Notes
 
+## 2026-07-05 Tiny BPE LM Run
+
+Command:
+
+```bash
+python3 scripts/run_track_a_sandbox.py \
+  --tokenizer bpe \
+  --bpe-vocab-size 64 \
+  --max-steps 40 \
+  --out-dir experiments/runs/bpe_smoke
+```
+
+Result:
+
+```text
+initial_val_loss=4.3828
+final_val_loss=1.8230
+initial_val_perplexity=80.0588
+final_val_perplexity=6.1904
+vocab_size=64
+num_merges=24
+num_tokens=386
+tokens_per_character=0.6918
+```
+
+Interpretation:
+
+The BPE path now runs through the same full loop as the character baseline:
+
+```text
+toy text -> BPE tokenizer -> token IDs -> tiny Transformer -> loss/perplexity -> sample
+```
+
+Compared with the character baseline, BPE compresses the toy corpus from 558
+tokens to 386 tokens. Validation loss still drops on the toy run, so the model
+loop works with merged tokens too.
+
+This still does not prove model quality. The corpus is tiny and explicitly not
+approved training data. The next real gate is an approved small corpus, then the
+same char-vs-BPE comparison should be rerun on that text.
+
 ## 2026-07-04 Tiny Character LM Run
 
 Command:
