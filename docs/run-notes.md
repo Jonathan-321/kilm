@@ -1,5 +1,98 @@
 # Track A Sandbox Run Notes
 
+## 2026-07-05 Approved MT Baseline GPU MPS 10k Continuation
+
+Commands:
+
+```bash
+python3 scripts/fetch_approved_corpus.py \
+  --source digital-umuganda-mt-rw \
+  --min-line-chars 5
+
+python3 scripts/prepare_corpus.py \
+  --corpus-id digital-umuganda-mt-rw \
+  --out-dir data/processed/digital_umuganda_mt_full \
+  --val-fraction 0.02 \
+  --min-line-chars 5
+
+python3 scripts/run_track_a_sandbox.py \
+  --manifest data/processed/digital_umuganda_mt_full/corpora.json \
+  --corpus-id digital-umuganda-mt-rw-train \
+  --val-corpus-id digital-umuganda-mt-rw-val \
+  --tokenizer bpe \
+  --tokenizer-fit-scope train-val \
+  --bpe-vocab-size 512 \
+  --model-config baseline_gpu \
+  --max-steps 2000 \
+  --eval-interval 200 \
+  --eval-iters 5 \
+  --batch-size 8 \
+  --learning-rate 0.0005 \
+  --min-learning-rate 0.00005 \
+  --lr-schedule cosine \
+  --warmup-steps 100 \
+  --grad-clip 1.0 \
+  --checkpoint-interval 500 \
+  --sample-interval 250 \
+  --sample-temperature 0.7 \
+  --sample-top-k 40 \
+  --sample-tokens 220 \
+  --device mps \
+  --out-dir experiments/runs/du_mt_full_baseline_gpu_mps_2k
+
+python3 scripts/run_track_a_sandbox.py \
+  --manifest data/processed/digital_umuganda_mt_full/corpora.json \
+  --corpus-id digital-umuganda-mt-rw-train \
+  --val-corpus-id digital-umuganda-mt-rw-val \
+  --resume-checkpoint experiments/runs/du_mt_full_baseline_gpu_mps_2k/checkpoint.pt \
+  --max-steps 10000 \
+  --eval-interval 500 \
+  --eval-iters 5 \
+  --batch-size 8 \
+  --learning-rate 0.00005 \
+  --min-learning-rate 0.00005 \
+  --lr-schedule constant \
+  --grad-clip 1.0 \
+  --checkpoint-interval 2000 \
+  --sample-interval 1000 \
+  --sample-temperature 0.7 \
+  --sample-top-k 40 \
+  --sample-tokens 220 \
+  --device mps \
+  --out-dir experiments/runs/du_mt_full_baseline_gpu_mps_continue_10k
+
+python3 scripts/create_review_packet.py \
+  experiments/runs/du_mt_full_baseline_gpu_mps_continue_10k \
+  --sample-decision needs-linguistic-review
+```
+
+Result:
+
+```text
+prepared_lines=44527
+train_lines=43636
+val_lines=891
+replacement_chars=0
+BPE vocab=512
+train_tokens=764213
+val_tokens=15420
+model=baseline_gpu
+block_size=256
+2k perplexity=599.4842 -> 42.1314
+10k continuation perplexity=43.7940 -> 21.0469
+```
+
+Interpretation:
+
+This is the first run where more approved data and a larger model/context
+clearly beat the TTS-only path. The final sample is still grammatically and
+semantically unreliable, but it is no longer pure garbage. It is marked
+`needs-linguistic-review`, not as a usable learner-facing result.
+
+Important implementation note: the MT source files are cp1252-style text, not
+UTF-8. The importer now falls back to cp1252 decoding so the prepared text does
+not contain replacement characters.
+
 ## 2026-07-05 Approved TTS 10k Continuation
 
 Command:
