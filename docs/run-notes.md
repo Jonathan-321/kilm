@@ -1,5 +1,45 @@
 # Track A Sandbox Run Notes
 
+## 2026-07-05 Prepared Split Smoke Run
+
+Commands:
+
+```bash
+python3 scripts/prepare_corpus.py \
+  --corpus-id toy \
+  --out-dir data/processed/toy_smoke
+
+python3 scripts/run_track_a_sandbox.py \
+  --manifest data/processed/toy_smoke/corpora.json \
+  --corpus-id toy-train \
+  --val-corpus-id toy-val \
+  --tokenizer bpe \
+  --tokenizer-fit-scope train-val \
+  --bpe-vocab-size 48 \
+  --block-size 8 \
+  --max-steps 40 \
+  --out-dir experiments/runs/prepared_bpe_smoke
+```
+
+Result:
+
+```text
+prepared_lines=17
+train_lines=15
+val_lines=2
+BPE final_val_loss=3.7307
+BPE final_val_perplexity=41.7068
+train_tokens=346
+val_tokens=19
+```
+
+Interpretation:
+
+This is a more honest pipeline check than the original single-file split:
+corpus preparation writes separate train/validation files, and the trainer
+reads them as separate corpus records. The tiny validation set is unstable, but
+the wiring now matches the shape needed for approved data.
+
 ## 2026-07-05 Pipeline Artifact Run
 
 Commands:

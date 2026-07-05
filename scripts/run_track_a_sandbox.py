@@ -33,9 +33,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--corpus-id", default="toy")
     parser.add_argument("--corpus", type=Path, default=None)
+    parser.add_argument("--val-corpus-id", default=None)
+    parser.add_argument("--val-corpus", type=Path, default=None)
     parser.add_argument("--allow-unapproved-corpus", action="store_true")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--tokenizer", choices=("char", "bpe"), default="char")
+    parser.add_argument(
+        "--tokenizer-fit-scope",
+        choices=("train", "train-val"),
+        default="train-val",
+    )
     parser.add_argument("--bpe-vocab-size", type=int, default=80)
     parser.add_argument("--bpe-min-frequency", type=int, default=2)
     parser.add_argument("--max-steps", type=int, default=40)
@@ -104,6 +111,54 @@ def serializable_args(args: argparse.Namespace) -> dict[str, object]:
     return payload
 
 
+def load_train_val_texts(args: argparse.Namespace):
+    train_corpus, train_text = load_corpus_text(
+        manifest_path=args.manifest,
+        corpus_id=args.corpus_id,
+        corpus_path=args.corpus,
+        allow_unapproved=args.allow_unapproved_corpus,
+    )
+    if args.val_corpus_id is None and args.val_corpus is None:
+        return train_corpus, train_text, None, None
+
+    val_corpus_id = args.val_corpus_id or args.corpus_id
+    val_corpus, val_text = load_corpus_text(
+        manifest_path=args.manifest,
+        corpus_id=val_corpus_id,
+        corpus_path=args.val_corpus,
+        allow_unapproved=args.allow_unapproved_corpus,
+    )
+    return train_corpus, train_text, val_corpus, val_text
+
+
+def split_or_encode_explicit_val(
+    *,
+    tokenizer: AnyTokenizer,
+    train_text: str,
+    val_text: str | None,
+    block_size: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    train_token_ids = torch.tensor(tokenizer.encode(train_text), dtype=torch.long)
+    if len(train_token_ids) <= block_size + 1:
+        raise ValueError(
+            "training corpus is too small for the requested block size: "
+            f"{len(train_token_ids)} tokens for block_size={block_size}."
+        )
+
+    if val_text is not None:
+        val_token_ids = torch.tensor(tokenizer.encode(val_text), dtype=torch.long)
+        if len(val_token_ids) <= block_size:
+            raise ValueError(
+                "validation corpus is too small for the requested block size: "
+                f"{len(val_token_ids)} tokens for block_size={block_size}."
+            )
+        return train_token_ids, val_token_ids
+
+    split_idx = max(block_size + 1, int(0.9 * len(train_token_ids)))
+    split_idx = min(split_idx, len(train_token_ids) - 1)
+    return train_token_ids[:split_idx], train_token_ids[split_idx - block_size :]
+
+
 @torch.no_grad()
 def estimate_loss(
     model: TinyTransformerLM,
@@ -134,30 +189,26 @@ def main() -> int:
     args = parse_args()
     set_seed(args.seed)
 
-    corpus, text = load_corpus_text(
-        manifest_path=args.manifest,
-        corpus_id=args.corpus_id,
-        corpus_path=args.corpus,
-        allow_unapproved=args.allow_unapproved_corpus,
+    corpus, text, val_corpus, val_text = load_train_val_texts(args)
+    tokenizer_text = (
+        text
+        if args.tokenizer_fit_scope == "train" or val_text is None
+        else text + "\n" + val_text
     )
     tokenizer = train_tokenizer(
         args.tokenizer,
-        text,
+        tokenizer_text,
         bpe_vocab_size=args.bpe_vocab_size,
         bpe_min_frequency=args.bpe_min_frequency,
     )
-    token_ids = torch.tensor(tokenizer.encode(text), dtype=torch.long)
-    if len(token_ids) <= args.block_size + 1:
-        raise ValueError(
-            "encoded corpus is too small for the requested block size: "
-            f"{len(token_ids)} tokens for block_size={args.block_size}. "
-            "Use a larger corpus, a smaller BPE vocab, or a smaller block size."
-        )
-
-    split_idx = max(args.block_size + 1, int(0.9 * len(token_ids)))
-    split_idx = min(split_idx, len(token_ids) - 1)
-    train_data = token_ids[:split_idx]
-    val_data = token_ids[split_idx - args.block_size :]
+    train_data, val_data = split_or_encode_explicit_val(
+        tokenizer=tokenizer,
+        train_text=text,
+        val_text=val_text,
+        block_size=args.block_size,
+    )
+    total_characters = len(text) + (len(val_text) if val_text else 0)
+    total_tokens = len(train_data) + len(val_data)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = TinyTransformerConfig(
@@ -230,6 +281,7 @@ def main() -> int:
     summary = {
         "args": serializable_args(args),
         "corpus": corpus.to_dict(),
+        "validation_corpus": val_corpus.to_dict() if val_corpus else None,
         "corpus_path": str(corpus.path),
         "device": str(device),
         "seed": args.seed,
@@ -237,14 +289,15 @@ def main() -> int:
             "type": args.tokenizer,
             "vocab_size": tokenizer.vocab_size,
             "num_merges": len(tokenizer.to_dict()["merges"]),
+            "fit_scope": args.tokenizer_fit_scope,
             "bpe_min_frequency": (
                 args.bpe_min_frequency if args.tokenizer == "bpe" else None
             ),
         },
         "vocab_size": tokenizer.vocab_size,
-        "num_characters": len(text),
-        "num_tokens": len(token_ids),
-        "tokens_per_character": round(len(token_ids) / len(text), 4),
+        "num_characters": total_characters,
+        "num_tokens": total_tokens,
+        "tokens_per_character": round(total_tokens / total_characters, 4),
         "train_tokens": len(train_data),
         "val_tokens": len(val_data),
         "config": asdict(config),

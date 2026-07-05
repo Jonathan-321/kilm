@@ -168,6 +168,12 @@ def test_run_report_renders_key_fields():
             "path": "data/toy_corpus.txt",
             "description": "Toy corpus",
         },
+        "validation_corpus": {
+            "id": "toy-val",
+            "status": "toy",
+            "path": "data/processed/toy/val.txt",
+            "description": "Toy validation split",
+        },
         "tokenizer": {"type": "bpe", "vocab_size": 64, "num_merges": 24},
         "config": {"n_layer": 1, "n_head": 1, "n_embd": 16, "block_size": 8},
         "num_tokens": 20,
@@ -188,6 +194,7 @@ def test_run_report_renders_key_fields():
     report = render_run_report(summary)
 
     assert "Final validation loss" in report
+    assert "Validation Corpus" in report
     assert "Muraho neza" in report
     assert "checkpoint.pt" in report
 

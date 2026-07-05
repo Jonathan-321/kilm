@@ -78,6 +78,21 @@ python3 scripts/prepare_corpus.py \
   --out-dir data/processed/toy
 ```
 
+Train with an explicit prepared validation split:
+
+```bash
+python3 scripts/run_track_a_sandbox.py \
+  --manifest data/processed/toy/corpora.json \
+  --corpus-id toy-train \
+  --val-corpus-id toy-val \
+  --tokenizer bpe \
+  --tokenizer-fit-scope train-val \
+  --bpe-vocab-size 48 \
+  --block-size 8 \
+  --max-steps 40 \
+  --out-dir experiments/runs/prepared_bpe_smoke
+```
+
 Sample from a saved checkpoint:
 
 ```bash
@@ -130,6 +145,10 @@ not for claiming training data is approved.
 Prepared corpus outputs under `data/processed/` are local artifacts by default.
 Each prepared folder contains `full.txt`, `train.txt`, `val.txt`, `stats.json`,
 `corpora.json`, and `corpus_card.md`.
+
+For explicit train/validation runs, `--tokenizer-fit-scope train-val` fits the
+tokenizer on both splits so tiny smoke tests do not fail on unseen validation
+characters. Use `--tokenizer-fit-scope train` when you want a stricter check.
 
 ## Repository Boundary
 
