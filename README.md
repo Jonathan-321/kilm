@@ -52,6 +52,12 @@ From the repo root:
 python3 scripts/run_track_a_sandbox.py --max-steps 40
 ```
 
+Run the test suite:
+
+```bash
+make test
+```
+
 Run the BPE path:
 
 ```bash
@@ -109,6 +115,15 @@ python3 scripts/compare_runs.py \
   experiments/runs/char_smoke \
   experiments/runs/bpe_smoke \
   --out experiments/analysis/run_comparison.md
+```
+
+The common local workflow is also available as:
+
+```bash
+make analyze
+make smoke
+make prepared-smoke
+make compare
 ```
 
 Outputs are written to:
