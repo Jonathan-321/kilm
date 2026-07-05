@@ -19,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run", type=Path)
     parser.add_argument("--out-dir", type=Path, default=None)
+    parser.add_argument("--sample-decision", default="needs-review")
     return parser.parse_args()
 
 
@@ -30,7 +31,11 @@ def main() -> int:
 
     (out_dir / "data_card.md").write_text(render_data_card(summary), encoding="utf-8")
     (out_dir / "model_card.md").write_text(render_model_card(summary), encoding="utf-8")
-    write_sample_review(out_dir / "sample_review.tsv", summary)
+    write_sample_review(
+        out_dir / "sample_review.tsv",
+        summary,
+        decision=args.sample_decision,
+    )
 
     print(f"wrote {out_dir / 'data_card.md'}")
     print(f"wrote {out_dir / 'model_card.md'}")
@@ -116,7 +121,12 @@ def render_model_card(summary: dict[str, object]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write_sample_review(path: Path, summary: dict[str, object]) -> None:
+def write_sample_review(
+    path: Path,
+    summary: dict[str, object],
+    *,
+    decision: str,
+) -> None:
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
@@ -142,7 +152,7 @@ def write_sample_review(path: Path, summary: dict[str, object]) -> None:
                 "meaningfulness_1_5": "",
                 "grammar_notes": "",
                 "safety_or_bias_notes": "",
-                "decision": "needs-review",
+                "decision": decision,
             }
         )
 

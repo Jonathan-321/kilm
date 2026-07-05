@@ -1,5 +1,60 @@
 # Track A Sandbox Run Notes
 
+## 2026-07-05 Approved TTS 10k Continuation
+
+Command:
+
+```bash
+python3 scripts/run_track_a_sandbox.py \
+  --manifest data/processed/digital_umuganda_tts_full/corpora.json \
+  --corpus-id digital-umuganda-tts-rw-train \
+  --val-corpus-id digital-umuganda-tts-rw-val \
+  --resume-checkpoint experiments/runs/du_tts_full_small_mps_baseline/checkpoint.pt \
+  --max-steps 10000 \
+  --eval-interval 500 \
+  --eval-iters 10 \
+  --batch-size 32 \
+  --learning-rate 0.00008 \
+  --min-learning-rate 0.00008 \
+  --lr-schedule constant \
+  --grad-clip 1.0 \
+  --checkpoint-interval 2000 \
+  --sample-interval 1000 \
+  --sample-temperature 0.7 \
+  --sample-top-k 40 \
+  --sample-tokens 220 \
+  --device mps \
+  --out-dir experiments/runs/du_tts_full_small_mps_continue_10k
+
+python3 scripts/create_review_packet.py \
+  experiments/runs/du_tts_full_small_mps_continue_10k \
+  --sample-decision failed-smoke
+```
+
+Result:
+
+```text
+resumed_from=experiments/runs/du_tts_full_small_mps_baseline/checkpoint.pt
+initial_val_loss=4.9357
+final_val_loss=4.0865
+initial_val_perplexity=139.1711
+final_val_perplexity=59.5324
+elapsed_seconds=593.329
+sample_snapshots=10
+checkpoints=2000,4000,6000,8000,10000
+```
+
+Interpretation:
+
+Longer training kept working: validation perplexity dropped from about 139 to
+about 60 after 10,000 continuation steps. The generated samples are still not
+usable Kinyarwanda, so the current sample review decision is `failed-smoke`, not
+`needs-review`.
+
+The next technical move is not just more of the same forever. We should try a
+larger context/model and more approved text, then compare whether sample quality
+improves at the same or lower validation loss.
+
 ## 2026-07-05 Approved TTS Full Small MPS Baseline
 
 Commands:

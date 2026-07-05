@@ -376,7 +376,8 @@ def main() -> int:
             )
             print(
                 f"step {step:04d} train_loss={loss.item():.4f} "
-                f"val_loss={val_loss:.4f}"
+                f"val_loss={val_loss:.4f}",
+                flush=True,
             )
         if args.sample_interval > 0 and step % args.sample_interval == 0:
             snapshot = generate_sample(
@@ -502,13 +503,13 @@ def main() -> int:
             summary=summary,
         )
 
-    print(f"initial_val_loss={initial_loss:.4f}")
-    print(f"final_val_loss={final_loss:.4f}")
-    print(f"initial_val_perplexity={initial_perplexity:.4f}")
-    print(f"final_val_perplexity={final_perplexity:.4f}")
+    print(f"initial_val_loss={initial_loss:.4f}", flush=True)
+    print(f"final_val_loss={final_loss:.4f}", flush=True)
+    print(f"initial_val_perplexity={initial_perplexity:.4f}", flush=True)
+    print(f"final_val_perplexity={final_perplexity:.4f}", flush=True)
     if checkpoint_path:
-        print(f"checkpoint={checkpoint_path}")
-    print(f"wrote {args.out_dir}")
+        print(f"checkpoint={checkpoint_path}", flush=True)
+    print(f"wrote {args.out_dir}", flush=True)
     return 0
 
 
