@@ -8,7 +8,11 @@ experiments/analysis/
 data/approved/
 data/processed/
 data/raw/
+data/tokenized/
+data/kinyarwanda_full_corpus.txt
+data/kinyarwanda_full_corpus_stats.json
 wandb/
+logs/
 
 # Python/editor noise
 __pycache__/

@@ -24,6 +24,32 @@ text corpus
 → written interpretation
 ```
 
+## Production-Scale Baseline Path
+
+The repo now includes a larger from-scratch Kinyarwanda LM path in addition to
+the original tiny sandbox loop:
+
+```bash
+make aggregate
+make train-tokenizer
+make tokenize-full
+make train-full
+make final-report
+```
+
+That path aggregates the large Kinyarwanda corpus, trains a 32k SentencePiece
+BPE tokenizer with byte fallback, tokenizes into 1024-token Arrow blocks, and
+trains a 109M-parameter LLaMA-style causal LM from scratch.
+
+The training script defaults to a 50000-step target with AdamW, cosine LR,
+2000 warmup steps, gradient clipping, checkpointing, validation, and sample
+generation every 2000 steps. On local Apple MPS, the recorded baseline completed
+2000 steps as a compute-limited run; see `docs/FINAL_RUN_REPORT.md`,
+`docs/DATA_CARD.md`, and `docs/MODEL_CARD.md`.
+
+Generated text is still not fluent enough for product use. Treat the current
+model as proof that the pipeline works, not proof that the model is ready.
+
 ## Current Stage
 
 The runnable sandbox now supports approved-corpus baseline runs, not only toy

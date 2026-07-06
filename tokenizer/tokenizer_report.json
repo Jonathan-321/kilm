@@ -1,0 +1,9 @@
+{
+  "corpus": "/Users/jonathanmuhire/Documents/kilm/data/kinyarwanda_full_corpus.txt",
+  "model": "/Users/jonathanmuhire/Documents/kilm/tokenizer/kinyarwanda_spm.model",
+  "vocab": "/Users/jonathanmuhire/Documents/kilm/tokenizer/kinyarwanda_spm.vocab",
+  "vocab_size": 32000,
+  "character_coverage": 1.0,
+  "model_type": "bpe",
+  "byte_fallback": true
+}

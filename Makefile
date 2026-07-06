@@ -1,4 +1,4 @@
-.PHONY: test analyze fetch-approved morphology review-packet smoke prepare prepared-smoke compare clean
+.PHONY: test analyze aggregate train-tokenizer tokenize-full train-full final-report fetch-approved morphology review-packet smoke prepare prepared-smoke compare clean
 
 test:
 	PYTHONPATH=src python3 -m pytest -q
@@ -7,6 +7,21 @@ analyze:
 	python3 scripts/analyze_tokenizers.py \
 		--bpe-vocab-size 64 \
 		--out-dir experiments/analysis/tokenizers_smoke
+
+aggregate:
+	.venv/bin/python scripts/aggregate_corpus.py
+
+train-tokenizer:
+	.venv/bin/python scripts/train_sentencepiece.py
+
+tokenize-full:
+	.venv/bin/python scripts/tokenize_corpus.py
+
+train-full:
+	.venv/bin/python scripts/train_kilm.py
+
+final-report:
+	.venv/bin/python scripts/write_final_report.py
 
 fetch-approved:
 	python3 scripts/fetch_approved_corpus.py \

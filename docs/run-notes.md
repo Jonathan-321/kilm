@@ -1,5 +1,53 @@
 # Track A Sandbox Run Notes
 
+## 2026-07-06 Rebuilt 109M KILM Baseline
+
+Commands:
+
+```bash
+.venv/bin/python scripts/aggregate_corpus.py
+.venv/bin/python scripts/train_sentencepiece.py
+.venv/bin/python scripts/tokenize_corpus.py --num-proc 4
+
+PYTHONUNBUFFERED=1 .venv/bin/python scripts/train_kilm.py \
+  --max-steps 2000 \
+  --gradient-accumulation-steps 1 \
+  --logging-steps 100 \
+  --disable-tqdm
+
+.venv/bin/python scripts/write_final_report.py
+```
+
+Result:
+
+```text
+corpus_words=22519811
+tokenized_train_tokens=33985536
+tokenized_validation_tokens=711680
+total_tokenized_tokens=34697216
+tokenizer=SentencePiece BPE 32000 byte fallback
+model_parameters=109529856
+completed_steps=2000
+train_loss=6.818963836669922
+train_perplexity=915.036391549543
+validation_loss=5.864002704620361
+validation_perplexity=352.13080251279723
+checkpoint=checkpoints/kilm-llama-100m/checkpoint-2000
+```
+
+Interpretation:
+
+The rebuilt pipeline works end to end on the large corpus: aggregation,
+SentencePiece tokenizer training, Arrow tokenization, 109M-parameter
+from-scratch training, checkpointing, validation, sampling, and final reporting
+all completed. This is a real baseline, not a toy loop.
+
+The samples are no longer pure character garbage, but they are still repetitive
+and not semantically reliable. The current model decision is
+`needs-more-training-and-fluent-review`. A real next run should resume from
+`checkpoint-2000` on stronger CUDA hardware and continue toward the default
+50000-step target.
+
 ## 2026-07-05 Approved MT Baseline GPU MPS 10k Continuation
 
 Commands:

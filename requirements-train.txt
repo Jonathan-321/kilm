@@ -1,0 +1,10 @@
+accelerate>=1.14
+datasets>=5.0
+huggingface_hub>=1.22
+pyarrow>=24.0
+protobuf>=6.30
+safetensors>=0.8
+sentencepiece>=0.2
+tokenizers>=0.22
+torch>=2.12
+transformers>=5.13
