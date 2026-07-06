@@ -36,9 +36,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--logs-dir", type=Path, default=DEFAULT_LOGS)
     parser.add_argument("--max-steps", type=int, default=50_000)
-    parser.add_argument("--per-device-train-batch-size", type=int, default=1)
-    parser.add_argument("--per-device-eval-batch-size", type=int, default=1)
-    parser.add_argument("--gradient-accumulation-steps", type=int, default=16)
+    parser.add_argument("--per-device-train-batch-size", type=int, default=None)
+    parser.add_argument("--per-device-eval-batch-size", type=int, default=None)
+    parser.add_argument("--gradient-accumulation-steps", type=int, default=1)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=0.1)
     parser.add_argument("--warmup-steps", type=int, default=2_000)
@@ -51,6 +51,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sample-new-tokens", type=int, default=180)
     parser.add_argument("--sample-temperature", type=float, default=0.7)
     parser.add_argument("--sample-top-k", type=int, default=40)
+    parser.add_argument("--dataloader-num-workers", type=int, default=None)
+    parser.add_argument(
+        "--torch-compile",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Defaults to enabled on CUDA and disabled elsewhere.",
+    )
     parser.add_argument("--disable-tqdm", action="store_true")
     parser.add_argument("--resume-from-checkpoint", default=None)
     parser.add_argument("--oom-retries", type=int, default=3)
@@ -60,7 +67,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    train_batch_size = args.per_device_train_batch_size
+    train_batch_size = default_train_batch_size(args)
     last_error: Exception | None = None
     for attempt in range(args.oom_retries + 1):
         try:
@@ -85,6 +92,9 @@ def main() -> int:
 def run_training(args: argparse.Namespace, *, train_batch_size: int) -> None:
     from datasets import load_from_disk
 
+    if torch.cuda.is_available():
+        torch.set_float32_matmul_precision("high")
+
     dataset = load_from_disk(str(args.dataset))
     tokenizer = AutoTokenizer.from_pretrained(str(args.tokenizer), use_fast=True)
     if tokenizer.pad_token is None:
@@ -105,11 +115,14 @@ def run_training(args: argparse.Namespace, *, train_batch_size: int) -> None:
     )
 
     bf16, fp16 = choose_precision()
+    eval_batch_size = default_eval_batch_size(args)
+    dataloader_num_workers = default_dataloader_num_workers(args)
+    torch_compile = default_torch_compile(args)
     training_args = TrainingArguments(
         output_dir=str(args.output_dir),
         max_steps=args.max_steps,
         per_device_train_batch_size=train_batch_size,
-        per_device_eval_batch_size=args.per_device_eval_batch_size,
+        per_device_eval_batch_size=eval_batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
@@ -129,7 +142,8 @@ def run_training(args: argparse.Namespace, *, train_batch_size: int) -> None:
         report_to=[],
         bf16=bf16,
         fp16=fp16,
-        dataloader_num_workers=0,
+        torch_compile=torch_compile,
+        dataloader_num_workers=dataloader_num_workers,
         dataloader_pin_memory=torch.cuda.is_available(),
         remove_unused_columns=False,
         seed=args.seed,
@@ -143,6 +157,12 @@ def run_training(args: argparse.Namespace, *, train_batch_size: int) -> None:
         "validation_tokens": len(dataset["test"]) * config.max_position_embeddings,
         "training_args": training_args.to_dict(),
         "precision": {"bf16": bf16, "fp16": fp16},
+        "resolved_runtime": {
+            "per_device_train_batch_size": train_batch_size,
+            "per_device_eval_batch_size": eval_batch_size,
+            "dataloader_num_workers": dataloader_num_workers,
+            "torch_compile": torch_compile,
+        },
     }
     (args.output_dir / "training_metadata.json").write_text(
         json.dumps(metadata, indent=2, ensure_ascii=False) + "\n",
@@ -152,6 +172,13 @@ def run_training(args: argparse.Namespace, *, train_batch_size: int) -> None:
     print(f"train_tokens={metadata['train_tokens']}")
     print(f"validation_tokens={metadata['validation_tokens']}")
     print(f"bf16={bf16} fp16={fp16}")
+    print(
+        "runtime="
+        f"train_batch={train_batch_size} "
+        f"eval_batch={eval_batch_size} "
+        f"workers={dataloader_num_workers} "
+        f"torch_compile={torch_compile}"
+    )
 
     trainer = Trainer(
         model=model,
@@ -242,6 +269,30 @@ def choose_precision() -> tuple[bool, bool]:
     if torch.cuda.is_available():
         return torch.cuda.is_bf16_supported(), not torch.cuda.is_bf16_supported()
     return False, False
+
+
+def default_train_batch_size(args: argparse.Namespace) -> int:
+    if args.per_device_train_batch_size is not None:
+        return args.per_device_train_batch_size
+    return 32 if torch.cuda.is_available() else 1
+
+
+def default_eval_batch_size(args: argparse.Namespace) -> int:
+    if args.per_device_eval_batch_size is not None:
+        return args.per_device_eval_batch_size
+    return 16 if torch.cuda.is_available() else 1
+
+
+def default_dataloader_num_workers(args: argparse.Namespace) -> int:
+    if args.dataloader_num_workers is not None:
+        return args.dataloader_num_workers
+    return 4 if torch.cuda.is_available() else 0
+
+
+def default_torch_compile(args: argparse.Namespace) -> bool:
+    if args.torch_compile is not None:
+        return args.torch_compile
+    return torch.cuda.is_available()
 
 
 def clear_device_cache() -> None:

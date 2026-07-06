@@ -42,6 +42,44 @@
 - Final validation loss: `5.864002704620361`
 - Final validation perplexity: `352.13080251279723`
 
+## Lambda CUDA Continuation
+
+The repository is prepared for a full Lambda Labs CUDA run. Large artifacts are
+gitignored, so rebuild the corpus and Arrow dataset on the instance before
+launching training.
+
+Recommended launch command inside a detached `tmux` session:
+
+```bash
+PYTHONUNBUFFERED=1 .venv/bin/python scripts/train_kilm.py \
+  --max-steps 50000 \
+  --save-steps 2000 \
+  --eval-steps 2000 \
+  --sample-steps 2000 \
+  --logging-steps 100 \
+  --disable-tqdm 2>&1 | tee logs/cuda_training.log
+```
+
+Monitor status:
+
+```bash
+tmux attach -t kilm_train
+tail -f logs/cuda_training.log
+.venv/bin/python scripts/check_training_status.py --log logs/cuda_training.log
+```
+
+When the 50000-step run completes, download the final checkpoint and reports
+from your laptop with:
+
+```bash
+rsync -avz lambda:/path/to/kilm/checkpoints/kilm-llama-100m/ ./kilm-llama-100m/
+rsync -avz lambda:/path/to/kilm/logs/ ./kilm-logs/
+rsync -avz lambda:/path/to/kilm/docs/FINAL_RUN_REPORT.md ./FINAL_RUN_REPORT.lambda.md
+```
+
+Replace `lambda:/path/to/kilm` with the SSH host alias and repository path for
+the Lambda Labs instance.
+
 ## Greedy Samples
 
 ### Sample 1
