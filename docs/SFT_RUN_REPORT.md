@@ -35,6 +35,23 @@ translation pairs and converts them into instruction-style user/assistant
 examples. This is a starting point, not a substitute for fluent-speaker
 conversation data.
 
+Lambda A100 run data generated on 2026-07-07:
+
+- Raw SFT examples: `19734`
+- Train examples: `17761`
+- Validation examples: `1973`
+- Held-out benchmark examples: `200`
+- Sources used:
+  - `ChrisToukmaji/kinyarwanda_instruction_tuning`
+  - `Rwanda-Tech-Project/kinyarwanda-instruction-dataset`
+  - `Mikecyane/Kinyarwanda_chat`
+  - `souvorinkg/english_kinyarwanda`
+
+The dataset is good enough to exercise QLoRA SFT, but it is still a bootstrap
+mix. It contains translated instruction rows, informal chat turns, and
+translation pairs. A production tutor still needs fluent-speaker-curated
+Kinyarwanda conversations.
+
 ## Launch Command
 
 ```bash
@@ -54,6 +71,19 @@ tmux new-session -d -s kilm_sft "
     2>&1 | tee logs/sft_training.log
 "
 ```
+
+Actual Lambda launch status:
+
+- Session: `kilm_sft`
+- Log: `logs/sft_training.log`
+- Base model loaded: `Qwen/Qwen2.5-7B-Instruct`
+- Total steps: `1668`
+- Batch size: `8`
+- Gradient accumulation: `4`
+- First 50 steps completed without OOM.
+- Step 50 loss: `2.2`
+- Step 50 mean token accuracy: `0.6343`
+- GPU during startup: A100 40GB, about `11GB` used, high utilization.
 
 ## Monitor
 
