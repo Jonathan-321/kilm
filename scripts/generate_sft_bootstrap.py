@@ -20,11 +20,21 @@ DEFAULT_BENCHMARK = ROOT / "data" / "eval" / "kinyarwanda_conversation_benchmark
 RW_KEYS = ("rw", "kin", "kinyarwanda", "target_rw", "sentence_rw")
 OTHER_KEYS = ("en", "eng", "english", "fr", "fra", "french")
 SEED_DATASETS = [
+    "ChrisToukmaji/kinyarwanda_instruction_tuning",
+    "Rwanda-Tech-Project/kinyarwanda-instruction-dataset",
+    "Mikecyane/Kinyarwanda_chat",
+    "souvorinkg/english_kinyarwanda",
+    "mbazaNLP/common-voice-kinyarwanda-english-dataset",
+    "DigitalUmuganda/kinyarwanda-english-machine-translation-dataset",
+    "mbazaNLP/Kinyarwanda_English_parallel_dataset",
     "masakhane/mafand",
     "mbazaNLP/mbazaNMT",
     "mbazaNLP/kinyarwanda-english",
     "mbazaNLP/NMT_Turku-to-English",
 ]
+CHAT_LINE_RE = re.compile(
+    r"^\d{1,2}/\d{1,2}/\d{2,4},\s+.*?\s+-\s+([^:]+):\s+(.+)$"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,7 +62,7 @@ def main() -> int:
         try:
             before = len(examples)
             remaining = args.max_examples - len(examples)
-            examples.extend(load_translation_examples(dataset_id, remaining=remaining))
+            examples.extend(load_dataset_examples(dataset_id, remaining=remaining))
             added = len(examples) - before
             print(f"dataset={dataset_id} added={added}", flush=True)
         except Exception as error:
@@ -105,11 +115,27 @@ def candidate_datasets(*, search_limit: int) -> list[str]:
     return candidates
 
 
-def load_translation_examples(dataset_id: str, *, remaining: int) -> list[dict[str, Any]]:
-    dataset = load_dataset(dataset_id, trust_remote_code=True)
+def load_dataset_examples(dataset_id: str, *, remaining: int) -> list[dict[str, Any]]:
+    dataset = load_dataset(dataset_id)
     rows: list[dict[str, Any]] = []
     for split_name, split in dataset.items():
+        chat_turns: list[tuple[str, str]] = []
         for row in split:
+            instruction = extract_instruction(row, dataset_id, split_name)
+            if instruction is not None:
+                rows.append(instruction)
+                if len(rows) >= remaining:
+                    return rows[:remaining]
+
+            chat_turn = extract_chat_turn(row)
+            if chat_turn is not None:
+                chat_turns.append(chat_turn)
+                if len(chat_turns) >= 2:
+                    rows.extend(chat_pairs(chat_turns, dataset_id, split_name))
+                    chat_turns = chat_turns[-1:]
+                if len(rows) >= remaining:
+                    return rows[:remaining]
+
             pair = extract_pair(row)
             if pair is None:
                 continue
@@ -118,6 +144,76 @@ def load_translation_examples(dataset_id: str, *, remaining: int) -> list[dict[s
             if len(rows) >= remaining:
                 return rows[:remaining]
     return rows
+
+
+def extract_instruction(
+    row: dict[str, Any],
+    dataset_id: str,
+    split_name: str,
+) -> dict[str, Any] | None:
+    instruction = clean(row.get("translated_instruction") or row.get("instruction"))
+    response = clean(row.get("translated_output") or row.get("response") or row.get("output"))
+    extra_input = clean(row.get("translated_input") or row.get("input") or row.get("context"))
+    if not instruction or not response:
+        return None
+    if not good_text(instruction) or not good_text(response):
+        return None
+    if extra_input and extra_input.lower() not in {"nan", "none", "null"}:
+        user_content = f"{instruction}\n\n{extra_input}"
+    else:
+        user_content = instruction
+    return {
+        "source": f"{dataset_id}:{split_name}",
+        "messages": [
+            {"role": "user", "content": user_content},
+            {"role": "assistant", "content": response},
+        ],
+    }
+
+
+def extract_chat_turn(row: dict[str, Any]) -> tuple[str, str] | None:
+    text = clean(row.get("text", ""))
+    match = CHAT_LINE_RE.match(text)
+    if not match:
+        return None
+    speaker = match.group(1).strip()
+    message = match.group(2).strip()
+    lower = message.lower()
+    skip_fragments = (
+        "messages and calls are end-to-end encrypted",
+        "waiting for this message",
+        "media omitted",
+        "missed voice call",
+        "deleted this message",
+        "this message was deleted",
+    )
+    if any(fragment in lower for fragment in skip_fragments):
+        return None
+    if not good_text(message):
+        return None
+    return speaker, message
+
+
+def chat_pairs(
+    turns: list[tuple[str, str]],
+    dataset_id: str,
+    split_name: str,
+) -> list[dict[str, Any]]:
+    if len(turns) < 2:
+        return []
+    previous_speaker, previous_message = turns[-2]
+    speaker, message = turns[-1]
+    if previous_speaker == speaker:
+        return []
+    return [
+        {
+            "source": f"{dataset_id}:{split_name}",
+            "messages": [
+                {"role": "user", "content": previous_message},
+                {"role": "assistant", "content": message},
+            ],
+        }
+    ]
 
 
 def extract_pair(row: dict[str, Any]) -> tuple[str, str, str] | None:
