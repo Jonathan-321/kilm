@@ -1,6 +1,8 @@
 accelerate>=1.14
+bitsandbytes>=0.48
 datasets>=5.0
 huggingface_hub>=1.22
+peft>=0.17
 pyarrow>=24.0
 protobuf>=6.30
 safetensors>=0.8
@@ -9,4 +11,5 @@ tensorboard>=2.18
 tokenizers>=0.22
 torch>=2.12
 transformers>=5.13
+trl>=0.24
 wandb>=0.18

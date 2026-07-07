@@ -50,6 +50,38 @@ generation every 2000 steps. On local Apple MPS, the recorded baseline completed
 Generated text is still not fluent enough for product use. Treat the current
 model as proof that the pipeline works, not proof that the model is ready.
 
+## Conversation SFT Pivot
+
+For a usable Kinyarwanda assistant, the next path is supervised fine-tuning
+on real user/assistant conversations, then human-rated evaluation. Prepare
+conversation data:
+
+```bash
+python scripts/prepare_sft_conversations.py \
+  --input data/sft/raw_conversations.jsonl \
+  --out-dir data/sft/processed \
+  --validation-fraction 0.1
+```
+
+Run QLoRA SFT against a stronger instruct base model, such as Llama 3 8B
+Instruct after accepting its Hugging Face license:
+
+```bash
+python scripts/train_sft_qlora.py \
+  --model-name meta-llama/Meta-Llama-3-8B-Instruct \
+  --train-file data/sft/processed/train.jsonl \
+  --validation-file data/sft/processed/validation.jsonl \
+  --output-dir checkpoints/sft/llama3-8b-kinyarwanda-qlora
+```
+
+Evaluate any base or SFT model with a held-out benchmark:
+
+```bash
+python scripts/run_conversation_benchmark.py \
+  --model checkpoints/kilm-llama-100m/checkpoint-50000 \
+  --benchmark data/eval/kinyarwanda_conversation_benchmark.jsonl
+```
+
 ## Current Stage
 
 The runnable sandbox now supports approved-corpus baseline runs, not only toy
