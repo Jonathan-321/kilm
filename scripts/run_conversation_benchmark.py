@@ -10,6 +10,7 @@ import sys
 import time
 
 import torch
+from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
@@ -21,6 +22,7 @@ DEFAULT_OUT_DIR = ROOT / "logs" / "benchmarks"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True, help="HF model id or local checkpoint path.")
+    parser.add_argument("--adapter", help="Optional LoRA adapter path for --model.")
     parser.add_argument("--benchmark", type=Path, default=DEFAULT_BENCHMARK)
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--max-new-tokens", type=int, default=160)
@@ -49,10 +51,11 @@ def main() -> int:
     torch.manual_seed(args.seed)
     device = select_device(args.device)
     dtype = select_dtype(args.dtype, device)
-    tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=True)
+    tokenizer_name = args.adapter or args.model
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model = load_model(args.model, dtype=dtype).to(device)
+    model = load_model(args.model, adapter=args.adapter, dtype=dtype).to(device)
     model.eval()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -196,11 +199,14 @@ def select_dtype(requested: str, device: str) -> torch.dtype:
     return torch.float32
 
 
-def load_model(model_name: str, *, dtype: torch.dtype):
+def load_model(model_name: str, *, adapter: str | None, dtype: torch.dtype):
     try:
-        return AutoModelForCausalLM.from_pretrained(model_name, dtype=dtype)
+        model = AutoModelForCausalLM.from_pretrained(model_name, dtype=dtype)
     except TypeError:
-        return AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=dtype)
+        model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=dtype)
+    if adapter:
+        model = PeftModel.from_pretrained(model, adapter)
+    return model
 
 
 if __name__ == "__main__":

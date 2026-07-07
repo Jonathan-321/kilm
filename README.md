@@ -63,15 +63,20 @@ python scripts/prepare_sft_conversations.py \
   --validation-fraction 0.1
 ```
 
-Run QLoRA SFT against a stronger instruct base model, such as Llama 3 8B
-Instruct after accepting its Hugging Face license:
+Bootstrap translation-style SFT pairs from open Hugging Face datasets:
+
+```bash
+python scripts/generate_sft_bootstrap.py
+```
+
+Run QLoRA SFT against a stronger open instruct base model:
 
 ```bash
 python scripts/train_sft_qlora.py \
-  --model-name meta-llama/Meta-Llama-3-8B-Instruct \
+  --model-name Qwen/Qwen2.5-7B-Instruct \
   --train-file data/sft/processed/train.jsonl \
   --validation-file data/sft/processed/validation.jsonl \
-  --output-dir checkpoints/sft/llama3-8b-kinyarwanda-qlora
+  --output-dir checkpoints/sft/qwen2.5-7b-kinyarwanda-qlora
 ```
 
 Evaluate any base or SFT model with a held-out benchmark:
